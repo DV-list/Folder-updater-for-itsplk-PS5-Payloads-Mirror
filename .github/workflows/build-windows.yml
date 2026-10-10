@@ -1,4 +1,4 @@
-name: Build Windows executable
+name: Build application packages
 
 on:
   push:
@@ -15,13 +15,26 @@ permissions:
   contents: read
 
 concurrency:
-  group: windows-build-${{ github.ref }}
+  group: build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-windows:
-    name: Test and build (Windows x64)
-    runs-on: windows-latest
+  build:
+    name: Test and build (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows-x64
+            artifact: dist/*.exe
+          - os: macos-latest
+            label: macOS
+            artifact: dist/*
+          - os: ubuntu-latest
+            label: Linux-x64
+            artifact: dist/*
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -32,6 +45,12 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements.txt
+
+      - name: Install Linux GUI build prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
 
       - name: Install dependencies
         run: |
@@ -44,24 +63,49 @@ jobs:
 
       - name: Read application version
         id: version
-        shell: pwsh
+        shell: python
         run: |
-          $source = Get-Content main.py -Raw
-          if ($source -match 'Mirror v([0-9]+\.[0-9]+\.[0-9]+)') {
-            "version=$($Matches[1])" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          } else {
-            throw "Could not determine application version from main.py"
-          }
+          import os
+          import re
+          from pathlib import Path
+
+          source = Path("main.py").read_text(encoding="utf-8")
+          match = re.search(r"Mirror v(\d+\.\d+\.\d+)", source)
+          if not match:
+              raise SystemExit("Could not determine application version from main.py")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"version={match.group(1)}\n")
 
       - name: Build Windows executable
+        if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          APP_NAME: Folder updater for itsplk PS5 Payloads Mirror v${{ steps.version.outputs.version }}
         run: |
-          python -m PyInstaller --clean --onefile --noconsole --optimize 2 --collect-data customtkinter --hidden-import customtkinter --exclude-module unittest --exclude-module test --exclude-module tkinter.test --exclude-module idlelib --exclude-module pydoc_data --exclude-module pytest --exclude-module IPython --exclude-module notebook --name "Folder updater for itsplk PS5 Payloads Mirror v${{ steps.version.outputs.version }}" main.py
+          python -m PyInstaller --clean --onefile --noconsole --optimize 2 --collect-data customtkinter --hidden-import customtkinter --exclude-module unittest --exclude-module test --exclude-module tkinter.test --exclude-module idlelib --exclude-module pydoc_data --exclude-module pytest --exclude-module IPython --exclude-module notebook --name "$env:APP_NAME" main.py
 
-      - name: Upload Windows executable
+      - name: Build macOS application
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APP_NAME: Folder updater for itsplk PS5 Payloads Mirror v${{ steps.version.outputs.version }}
+        run: |
+          python -m PyInstaller --clean --onefile --windowed --optimize 2 --collect-data customtkinter --hidden-import customtkinter --exclude-module unittest --exclude-module test --exclude-module tkinter.test --exclude-module idlelib --exclude-module pydoc_data --exclude-module pytest --exclude-module IPython --exclude-module notebook --name "$APP_NAME" main.py
+          ditto -c -k --sequesterRsrc --keepParent "dist/$APP_NAME.app" "dist/$APP_NAME-macOS.zip"
+
+      - name: Build Linux executable
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          APP_NAME: Folder updater for itsplk PS5 Payloads Mirror v${{ steps.version.outputs.version }}
+        run: |
+          python -m PyInstaller --clean --onefile --optimize 2 --collect-data customtkinter --hidden-import customtkinter --exclude-module unittest --exclude-module test --exclude-module tkinter.test --exclude-module idlelib --exclude-module pydoc_data --exclude-module pytest --exclude-module IPython --exclude-module notebook --name "$APP_NAME" main.py
+          python -c "import os, zipfile; name=os.environ['APP_NAME']; z=zipfile.ZipFile('dist/'+name+'-Linux.zip','w',zipfile.ZIP_DEFLATED); z.write('dist/'+name, name); z.close()"
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Folder-updater-Windows-x64-v${{ steps.version.outputs.version }}
-          path: dist/Folder updater for itsplk PS5 Payloads Mirror v${{ steps.version.outputs.version }}.exe
+          name: Folder-updater-${{ matrix.label }}-v${{ steps.version.outputs.version }}
+          path: ${{ matrix.artifact }}
           if-no-files-found: error
           retention-days: 30
