@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: build-${{ github.ref }}
@@ -30,10 +30,10 @@ jobs:
             artifact: dist/*.exe
           - os: macos-latest
             label: macOS
-            artifact: dist/*
+            artifact: dist/*-macOS.zip
           - os: ubuntu-latest
             label: Linux-x64
-            artifact: dist/*
+            artifact: dist/*-Linux.zip
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out repository
@@ -109,3 +109,23 @@ jobs:
           path: ${{ matrix.artifact }}
           if-no-files-found: error
           retention-days: 30
+
+  publish-release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Folder-updater-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release and attach builds
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Folder updater ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release-assets/*
