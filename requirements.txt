@@ -1,0 +1,2 @@
+# Runtime GUI dependency
+customtkinter>=5.2.2,<6.0
