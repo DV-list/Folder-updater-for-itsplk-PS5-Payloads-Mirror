@@ -66,6 +66,31 @@ class ControlAppGuiRowTests(unittest.TestCase):
         self.assertEqual(pc_row.payload, pc_row.filename)
         self.assertIsNone(pc_row.server_checksum)
 
+    def test_missing_control_app_uses_latest_catalog_name_not_stale_record(self):
+        stale_name = "ps5upload-win-x64-old"
+        stale_record = StateRecord(
+            payload=stale_name,
+            curr_dir_filename=stale_name,
+            curr_dir_file_version="1.0",
+            curr_checksum="a" * 64,
+            first_seen="2026-01-01 00:00:00",
+            last_seen="2026-01-02 00:00:00",
+            record_type="control-app",
+        )
+        self.app.state.save([stale_record])
+        result = self._result(CURRENT, include_record=False)
+        result.state_records = self.app.state.load()
+
+        result = self.app._add_control_app_gui_row(result, self._catalog())
+
+        pc_row = next(row for row in result.rows if row.catalog_payload == "__control_app__")
+        self.assertEqual(pc_row.payload, "ps5upload-win-x64")
+        self.assertEqual(pc_row.filename, "ps5upload-win-x64")
+        self.assertEqual(pc_row.server_version, "2.0")
+        self.assertEqual(pc_row.status, CONTROL_APP_DOWNLOAD)
+        self.assertIsNone(pc_row.curr_file_version)
+        self.assertFalse((self.app.base_dir / stale_name).exists())
+
     def test_no_control_app_row_without_record_or_catalog_entry(self):
         result = self._result(CURRENT, include_record=False)
         result = self.app._add_control_app_gui_row(result, [])
