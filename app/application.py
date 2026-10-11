@@ -154,9 +154,15 @@ class Application:
         else:
             expected_name = None
 
-        # A tracked filename remains canonical while it exists. Otherwise, the row's
-        # proposed filename comes from the configured release asset's real target name.
-        filename = (record.curr_dir_filename if record is not None else None) or expected_name or "ps5upload-control-app"
+        # Preserve a tracked custom name only while that path still exists. If the
+        # tracked control-app folder/file was deleted, show the latest catalog-derived
+        # target name rather than a stale filename from local-state.json.
+        tracked_filename = None
+        if record is not None and record.curr_dir_filename:
+            tracked_path = self.base_dir / record.curr_dir_filename
+            if tracked_path.exists():
+                tracked_filename = record.curr_dir_filename
+        filename = tracked_filename or expected_name or "ps5upload-control-app"
         current_path = self.base_dir / filename
         installed = current_path.is_file() or current_path.is_dir()
         parent_row = next(
