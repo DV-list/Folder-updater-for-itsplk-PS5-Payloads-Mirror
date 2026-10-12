@@ -6,7 +6,7 @@ from pathlib import Path
 class AppConfig:
     """Stable application paths and remote catalog configuration."""
 
-    APP_VERSION = "1.9.5"
+    APP_VERSION = "1.9.6"
     APP_NAME = "Folder updater for itsplk PS5 Payloads Mirror"
     REPOSITORY_URL = "https://github.com/itsPLK/ps5-payloads-mirror"
     PAYLOADS_URL = "https://itsplk.github.io/ps5-payloads-mirror/payloads.json"
