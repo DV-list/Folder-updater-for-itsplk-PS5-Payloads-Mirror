@@ -52,6 +52,10 @@ class UpdateManager:
         # Each payload is isolated so a failed download or verification does not
         # prevent other independently valid updates from being attempted.
         for row in rows:
+            # The control app has a dedicated download/update path; it is not an ELF
+            # catalog entry and must never be passed through the generic Porter.
+            if row.catalog_payload == "__control_app__":
+                continue
             if row.status != "UPDATE AVAILABLE" or not row.payload:
                 continue
 
