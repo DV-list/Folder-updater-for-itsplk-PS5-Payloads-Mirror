@@ -100,7 +100,8 @@ class Ps5uploadControlAppDL:
             record = StateRecord(
                 payload=install_name,
                 curr_dir_filename=install_name,
-                curr_dir_file_version=entry.version,
+                # The installed asset's version is unknown until a verified download.
+                curr_dir_file_version=None,
                 curr_checksum="",
                 first_seen=now,
                 last_seen=now,
@@ -112,7 +113,8 @@ class Ps5uploadControlAppDL:
             record.payload = install_name
             record.curr_dir_filename = install_name
             record.record_type = self.RECORD_TYPE
-            record.curr_dir_file_version = entry.version
+            # Do not copy the server version onto an existing local asset during
+            # discovery; that would incorrectly mark an outdated control app CURRENT.
             record.last_seen = now
             if not record.first_seen:
                 record.first_seen = now
@@ -120,68 +122,96 @@ class Ps5uploadControlAppDL:
         return record
 
     def ensure_client(self, catalog: list[PayloadEntry]) -> str:
-        """Download/install the configured asset; call only after explicit user action."""
+        """Download, validate, and replace the configured control-app asset."""
         description = self.describe_client(catalog)
         if description is None:
             self.logger.info("Control-app download skipped: ps5upload was not found in catalog")
             return "ps5upload is not present in the server catalog"
 
-        entry, asset_url, ps5upload_control_app_filename, install_name, is_zip = description
+        entry, asset_url, asset_filename, install_name, is_zip = description
         target_path = self.base_dir / install_name
         records = self.state.load()
         record = next((item for item in records if item.record_type == self.RECORD_TYPE), None)
-        asset_checksum: str | None = None
 
-        if is_zip and target_path.is_dir():
-            self.logger.info("Control-app directory already exists: %s", install_name)
-        elif not is_zip and target_path.is_file():
-            self.logger.info("Control-app asset already exists: %s", install_name)
-        elif target_path.exists():
-            raise ControlAppDownloadError(f"Expected control-app path exists with an incompatible type: {install_name}")
-        else:
-            download_path: Path | None = None
-            installed = False
+        target_exists = target_path.is_dir() if is_zip else target_path.is_file()
+        if target_path.exists() and not target_exists:
+            raise ControlAppDownloadError(
+                f"Expected control-app path exists with an incompatible type: {install_name}"
+            )
+
+        # Do not infer that an existing installation has the current server version.
+        # Only a successful, verified download records the new version.
+        if target_exists and record is not None and record.curr_dir_file_version == entry.version:
+            record.last_seen = datetime.now().astimezone().replace(microsecond=0).isoformat(sep=" ")
+            self.state.save(records)
+            self.logger.info("Control-app is already at server version %s", entry.version)
+            return f"Control app already current: {install_name}"
+
+        download_path: Path | None = None
+        staged_path: Path | None = None
+        old_archive: Path | None = None
+        asset_checksum: str | None = None
+        installed = False
+        try:
+            download_path, asset_checksum = self._download_asset(asset_url, asset_filename)
+            if is_zip:
+                staging_name = f".ps5upload-control-app-staging-{os.getpid()}-{datetime.now().strftime('%H%M%S%f')}"
+                staged_path = self.base_dir / staging_name
+                self._extract_archive(download_path, install_name, target_name=staging_name)
+                if not staged_path.is_dir() or not any(staged_path.iterdir()):
+                    raise ControlAppDownloadError(
+                        f"ZIP extraction did not create a usable directory: {install_name}"
+                    )
+            else:
+                # Stage the asset beside its destination for same-volume replacement.
+                staged_path = self.base_dir / f".{install_name}.staging-{os.getpid()}"
+                with staged_path.open("xb") as output, download_path.open("rb") as source:
+                    shutil.copyfileobj(source, output)
+                if self._sha256(staged_path) != asset_checksum:
+                    raise ControlAppDownloadError("Staged control-app checksum verification failed")
+
+            # Archive the previous package only after the replacement is downloaded and validated.
+            if target_exists:
+                old_dir = self.base_dir / "_OLD"
+                old_dir.mkdir(parents=True, exist_ok=True)
+                old_archive = self._unique_archive_path(target_path.name)
+                shutil.move(str(target_path), str(old_archive))
+
             try:
-                download_path, asset_checksum = self._download_asset(asset_url, ps5upload_control_app_filename)
+                shutil.move(str(staged_path), str(target_path))
                 if is_zip:
-                    self._extract_archive(download_path, install_name)
                     if not target_path.is_dir() or not any(target_path.iterdir()):
-                        raise ControlAppDownloadError(f"ZIP extraction did not create a usable directory: {install_name}")
-                    installed = True
-                else:
-                    # Exclusive hard-link install prevents overwriting an existing asset.
-                    try:
-                        os.link(download_path, target_path)
-                    except FileExistsError as exc:
-                        raise ControlAppDownloadError(f"Control-app asset already exists; refusing to overwrite: {install_name}") from exc
-                    except OSError:
-                        with target_path.open("xb") as output, download_path.open("rb") as source:
-                            shutil.copyfileobj(source, output)
-                    if self._sha256(target_path) != asset_checksum:
-                        target_path.unlink(missing_ok=True)
-                        raise ControlAppDownloadError("Final control-app asset checksum verification failed")
-                    installed = True
-                self.logger.info("Control-app asset %s installed; SHA-256=%s", ps5upload_control_app_filename, asset_checksum)
+                        raise ControlAppDownloadError("Final control-app directory verification failed")
+                elif self._sha256(target_path) != asset_checksum:
+                    raise ControlAppDownloadError("Final control-app checksum verification failed")
+                installed = True
             except Exception:
-                if is_zip and target_path.is_dir():
-                    shutil.rmtree(target_path, ignore_errors=True)
-                raise
-            finally:
-                # Keep a failed ZIP archive for diagnostics/retry. Successful ZIPs are
-                # removed only after extraction and output verification succeed.
-                if download_path is not None:
-                    if is_zip and installed:
-                        try:
-                            download_path.unlink(missing_ok=True)
-                        except OSError:
-                            self.logger.warning("Could not delete verified control-app ZIP: %s", download_path)
-                    elif not is_zip:
-                        try:
-                            download_path.unlink(missing_ok=True)
-                        except OSError:
-                            self.logger.warning("Could not delete temporary control-app asset: %s", download_path)
+                if target_path.exists():
+                    if target_path.is_dir():
+                        shutil.rmtree(target_path, ignore_errors=True)
                     else:
-                        self.logger.error("Control-app extraction failed; ZIP retained at %s", download_path)
+                        target_path.unlink(missing_ok=True)
+                if old_archive is not None and old_archive.exists() and not target_path.exists():
+                    shutil.move(str(old_archive), str(target_path))
+                    old_archive = None
+                raise
+        except Exception:
+            if staged_path is not None and staged_path.exists():
+                if staged_path.is_dir():
+                    shutil.rmtree(staged_path, ignore_errors=True)
+                else:
+                    staged_path.unlink(missing_ok=True)
+            raise
+        finally:
+            # Keep failed ZIPs for diagnostics; remove successful ZIPs and temporary non-ZIP assets.
+            if download_path is not None:
+                if installed or not is_zip:
+                    try:
+                        download_path.unlink(missing_ok=True)
+                    except OSError:
+                        self.logger.warning("Could not delete temporary control-app asset: %s", download_path)
+                else:
+                    self.logger.error("Control-app extraction failed; ZIP retained at %s", download_path)
 
         now = datetime.now().astimezone().replace(microsecond=0).isoformat(sep=" ")
         if record is None:
@@ -192,7 +222,7 @@ class Ps5uploadControlAppDL:
                 curr_checksum=asset_checksum or "",
                 first_seen=now,
                 last_seen=now,
-                last_updated=None,
+                last_updated=now,
                 pre_release=False,
                 record_type=self.RECORD_TYPE,
             )
@@ -202,13 +232,14 @@ class Ps5uploadControlAppDL:
             record.curr_dir_filename = install_name
             record.record_type = self.RECORD_TYPE
             record.curr_dir_file_version = entry.version
-            if asset_checksum is not None:
-                record.curr_checksum = asset_checksum
+            record.curr_checksum = asset_checksum or record.curr_checksum
             if not record.first_seen:
                 record.first_seen = now
             record.last_seen = now
+            record.last_updated = now
         self.state.save(records)
-        return f"Control app ready: {install_name}"
+        self.logger.info("Control-app version %s installed; previous package archived at %s", entry.version, old_archive)
+        return f"Control app updated: {install_name}"
 
     def _validate_url(self, url: str) -> None:
         parsed = urlsplit(url)
@@ -307,9 +338,11 @@ class Ps5uploadControlAppDL:
                 temp_path.unlink(missing_ok=True)
             raise
 
-    def _extract_archive(self, archive: Path, expected_folder: str) -> None:
+    def _extract_archive(
+        self, archive: Path, expected_folder: str, *, target_name: str | None = None
+    ) -> None:
         destination = self.base_dir.resolve()
-        target_dir = destination / expected_folder
+        target_dir = destination / (target_name or expected_folder)
         with zipfile.ZipFile(archive, "r") as zf:
             members = zf.infolist()
             if not members or len(members) > self.MAX_MEMBERS:
@@ -348,6 +381,20 @@ class Ps5uploadControlAppDL:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 with zf.open(info, "r") as source, output_path.open("xb") as output:
                     shutil.copyfileobj(source, output)
+
+    def _unique_archive_path(self, filename: str) -> Path:
+        """Return a non-existing _OLD path without overwriting archived history."""
+        old_dir = self.base_dir / "_OLD"
+        candidate = old_dir / filename
+        if not candidate.exists():
+            return candidate
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        candidate = old_dir / f"{filename}__{stamp}"
+        counter = 1
+        while candidate.exists():
+            candidate = old_dir / f"{filename}__{stamp}_{counter}"
+            counter += 1
+        return candidate
 
     @staticmethod
     def _validate_filename(filename: str) -> str:
