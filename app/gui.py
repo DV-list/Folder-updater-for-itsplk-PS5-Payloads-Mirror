@@ -483,7 +483,7 @@ class MainWindow:
             return None
         status = str(values[self.COLUMNS.index("Status")])
         if iid == "control_app_row":
-            retryable_status = status == CONTROL_APP_DOWNLOAD or status.startswith("Download Failed")
+            retryable_status = status in {CONTROL_APP_DOWNLOAD, UPDATE_AVAILABLE} or status.startswith("Download Failed")
             if retryable_status and self.control_app_download_callback is not None:
                 if self._download_running:
                     return "break"
