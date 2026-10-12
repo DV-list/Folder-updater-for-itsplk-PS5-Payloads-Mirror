@@ -73,6 +73,37 @@ class Ps5uploadControlAppDLTests(unittest.TestCase):
         self.assertEqual(record.payload, "ps5upload-win-x64")
         self.assertEqual(record.curr_checksum, checksum)
 
+    def test_successful_update_archives_obsolete_control_app_folder(self):
+        target = self.base / "ps5upload-win-x64"
+        target.mkdir()
+        (target / "PS5Upload.exe").write_bytes(b"old-client")
+        first_seen = "2026-01-01 00:00:00"
+        self.repo.save([StateRecord(
+            "ps5upload-win-x64", target.name, "1.0.0", "f" * 64,
+            first_seen, first_seen, record_type="control-app",
+        )])
+
+        archive_source = self.base / "source.zip"
+        with zipfile.ZipFile(archive_source, "w") as zf:
+            zf.writestr("PS5Upload.exe", b"new-client")
+        checksum = hashlib.sha256(archive_source.read_bytes()).hexdigest()
+
+        def fake_download(url, filename):
+            downloaded = self.base / "download-temp.zip"
+            downloaded.write_bytes(archive_source.read_bytes())
+            return downloaded, checksum
+
+        with patch.object(self.module, "_download_asset", side_effect=fake_download):
+            self.module.ensure_client([self.entry])
+
+        self.assertEqual((target / "PS5Upload.exe").read_bytes(), b"new-client")
+        archived = self.base / "_OLD" / "ps5upload-win-x64"
+        self.assertEqual((archived / "PS5Upload.exe").read_bytes(), b"old-client")
+        record = next(r for r in self.repo.load() if r.record_type == "control-app")
+        self.assertEqual(record.curr_dir_file_version, "1.2.3")
+        self.assertEqual(record.curr_checksum, checksum)
+        self.assertFalse((self.base / "download-temp.zip").exists())
+
     def test_dmg_asset_is_kept_and_checksum_is_recorded(self):
         (self.base / "appdata" / "config.ini").write_text('[General]\nLogLevel=INFO\n[ps5upload-control-app-dl]\nEnabled=true\nPlatform=mac-arm64.dmg\nDownloadOnlyWhenPS5UploadCurrent=true\n', encoding="utf-8")
         config = UserConfig(self.base)
@@ -93,7 +124,7 @@ class Ps5uploadControlAppDLTests(unittest.TestCase):
     def test_existing_directory_preserves_checksum_and_first_seen(self):
         (self.base / "ps5upload-win-x64").mkdir()
         first_seen = "2026-01-01 00:00:00"
-        self.repo.save([StateRecord("ps5upload-PC_client", "ps5upload-win-x64", "1.0.0", "f"*64, first_seen, first_seen, record_type="control-app")])
+        self.repo.save([StateRecord("ps5upload-PC_client", "ps5upload-win-x64", "1.2.3", "f"*64, first_seen, first_seen, record_type="control-app")])
         self.module.ensure_client([self.entry])
         record = self.repo.load()[0]
         self.assertEqual(record.curr_checksum, "f"*64)
