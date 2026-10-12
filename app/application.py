@@ -97,6 +97,16 @@ class Application:
         return result, list(self.download_candidates), self.discovery_error
 
     @staticmethod
+    def _version_key(version: str | None) -> tuple[int, ...] | None:
+        """Extract numeric version components for control-app version comparison."""
+        if not version:
+            return None
+        import re
+
+        parts = re.findall(r"\d+", version)
+        return tuple(int(part) for part in parts) if parts else None
+
+    @staticmethod
     def _ps5upload_is_current(result: ScanResult, catalog_error: str | None) -> bool:
         """Return true only when a fresh/known-good reconciliation marks ps5upload CURRENT."""
         if catalog_error is not None:
@@ -172,14 +182,18 @@ class Application:
         server_version = catalog_entry.version if catalog_entry is not None else None
 
         if installed:
-            if parent_row is None:
-                status = SERVER_UNAVAILABLE if catalog is None else "MISSING"
-            elif parent_row.status == CURRENT:
-                status = CURRENT
-            elif parent_row.status == UPDATE_AVAILABLE:
-                status = UPDATE_AVAILABLE
+            if catalog is None or catalog_entry is None:
+                status = SERVER_UNAVAILABLE
             else:
-                status = parent_row.status
+                current_version = self._version_key(record.curr_dir_file_version if record is not None else None)
+                latest_version = self._version_key(server_version)
+                # The control app has its own release lifecycle. Its status must not
+                # mirror ps5upload.elf: updating the ELF does not update this package.
+                status = (
+                    UPDATE_AVAILABLE
+                    if current_version is None or latest_version is None or current_version < latest_version
+                    else CURRENT
+                )
         elif catalog is None or catalog_entry is None:
             status = SERVER_UNAVAILABLE
         elif not self.user_config.control_app_enabled:
