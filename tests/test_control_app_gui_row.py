@@ -128,7 +128,16 @@ class ControlAppGuiRowTests(unittest.TestCase):
         pc_row = next(row for row in result.rows if row.catalog_payload == "__control_app__")
         self.assertEqual(pc_row.payload, "custom-control-app-dir")
         self.assertEqual(pc_row.filename, "custom-control-app-dir")
-        self.assertEqual(pc_row.status, CURRENT)
+        self.assertEqual(pc_row.status, UPDATE_AVAILABLE)
+
+    def test_control_app_status_uses_its_own_version_even_when_ps5upload_is_current(self):
+        (self.app.base_dir / "ps5upload-win-x64").mkdir()
+        result = self._result(CURRENT)
+        result = self.app._add_control_app_gui_row(result, self._catalog())
+        pc_row = next(row for row in result.rows if row.catalog_payload == "__control_app__")
+        self.assertEqual(pc_row.curr_file_version, "1.0")
+        self.assertEqual(pc_row.server_version, "2.0")
+        self.assertEqual(pc_row.status, UPDATE_AVAILABLE)
 
     def test_pre_release_overrides_missing_control_app_status(self):
         result = self._result(CURRENT)
