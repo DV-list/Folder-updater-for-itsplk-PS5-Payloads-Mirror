@@ -33,7 +33,7 @@ class UpdateManager:
 
     TIMEOUT_SECONDS = 30
     MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024
-    USER_AGENT = "Folder-updater/1.9.6"
+    USER_AGENT = "Folder-updater/1.9.7"
     MAX_REDIRECTS = 5
 
     def __init__(self, base_dir: Path) -> None:
