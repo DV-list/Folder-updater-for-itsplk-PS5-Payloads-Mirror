@@ -69,6 +69,7 @@ class PayloadCatalog:
                 f"Network error while fetching payloads.json: {exc.reason}"
             ) from exc
         except OSError as exc:
+            self.logger.warning("HTTP I/O failed for %s: %s", self._safe_url(self.url), exc)
             raise PayloadCatalogError(
                 f"Unable to fetch payloads.json: {exc}"
             ) from exc
@@ -89,10 +90,12 @@ class PayloadCatalog:
             self.logger.debug("Catalog wrapper keys: %s", sorted(document.keys()))
             document = document.get("payloads")
             if not isinstance(document, list):
+                self.logger.warning("Catalog wrapper is missing a valid payloads array")
                 raise PayloadCatalogError(
                     "payloads.json object must contain a 'payloads' array"
                 )
         elif not isinstance(document, list):
+            self.logger.warning("Catalog root has unsupported type: %s", type(document).__name__)
             raise PayloadCatalogError(
                 "payloads.json root must be an array or an object containing a 'payloads' array"
             )
@@ -104,6 +107,7 @@ class PayloadCatalog:
         # authoritative target filename rather than deriving it from local names.
         for index, item in enumerate(document):
             if not isinstance(item, dict):
+                self.logger.warning("Catalog entry %s has unsupported type: %s", index, type(item).__name__)
                 raise PayloadCatalogError(
                     f"payloads.json entry {index} is not an object"
                 )
@@ -119,6 +123,7 @@ class PayloadCatalog:
                 isinstance(value, str) and value
                 for value in (name, filename, version, checksum)
             ):
+                self.logger.warning("Catalog entry %s is missing required fields", index)
                 raise PayloadCatalogError(
                     f"payloads.json entry {index} is missing required name/filename/version/checksum"
                 )
