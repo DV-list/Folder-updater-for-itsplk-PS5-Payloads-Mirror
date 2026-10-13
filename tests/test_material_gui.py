@@ -98,6 +98,16 @@ class MaterialGuiTests(unittest.TestCase):
         self.assertEqual(window.update_button.kwargs["fg_color"], MainWindow.UPDATE_BLUE)
         self.assertEqual(window.update_button.kwargs["hover_color"], MainWindow.UPDATE_HOVER_BLUE)
 
+    def test_file_added_date_formatter_can_be_called_on_window_instance(self):
+        from app.gui import MainWindow
+
+        window = MainWindow.__new__(MainWindow)
+        self.assertEqual(
+            window._format_file_added_date("2026-10-08T16:37:42.987Z"),
+            "2026-10-08 16:37:42",
+        )
+        self.assertEqual(window._format_file_added_date(None), "—")
+
     def test_treeview_uses_full_widget_width_for_columns(self):
         state = self.source.split('    def _sync_table_layout(self) -> None:', 1)[1].split('    def _calculate_natural_widths', 1)[0]
         self.assertIn('available = max(self.tree.winfo_width(), 1)', state)
