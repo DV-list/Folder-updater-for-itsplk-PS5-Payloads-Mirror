@@ -166,6 +166,12 @@ class UpdateManager:
                 except OSError:
                     self.logger.warning("Unable to remove temporary file %s", temporary)
 
+    @staticmethod
+    def _safe_url(url: str) -> str:
+        """Return an HTTP URL without query parameters or fragments."""
+        parsed = urlparse(url)
+        return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+
     def _download_to_temp(self, url: str) -> Path:
         """Download an HTTPS URL to a bounded temporary file."""
         current_url = url
@@ -187,14 +193,17 @@ class UpdateManager:
                     headers={"User-Agent": self.USER_AGENT},
                     method="GET",
                 )
+                self.logger.debug("HTTP request starting: GET %s", self._safe_url(current_url))
                 try:
                     response = opener.open(request, timeout=self.TIMEOUT_SECONDS)
                 except HTTPError as exc:
+                    self.logger.debug("HTTP error response: status=%s url=%s", exc.code, self._safe_url(current_url))
                     if exc.code in {301, 302, 303, 307, 308}:
                         location = exc.headers.get("Location")
                         if not location:
                             raise UpdateError("Redirect response has no Location header")
                         current_url = urljoin(current_url, location)
+                        self.logger.debug("HTTP redirect received; next URL=%s", self._safe_url(current_url))
                         # The next loop iteration validates the complete redirect URL
                         # and resolves its hostname before making another request.
                         continue
@@ -205,6 +214,13 @@ class UpdateManager:
                     raise UpdateError(f"Unable to download payload: {exc}") from exc
 
                 with response:
+                    self.logger.debug(
+                        "HTTP response: status=%s content_type=%s content_length=%s url=%s",
+                        response.status,
+                        response.headers.get("Content-Type"),
+                        response.headers.get("Content-Length"),
+                        self._safe_url(current_url),
+                    )
                     if response.status != 200:
                         raise UpdateError(f"HTTP {response.status} while downloading payload")
 
@@ -229,6 +245,7 @@ class UpdateManager:
                             handle.write(chunk)
                         handle.flush()
                         os.fsync(handle.fileno())
+                    self.logger.debug("HTTP download completed: bytes=%s url=%s", total, self._safe_url(current_url))
                     return temporary_path
 
             raise UpdateError("Too many HTTPS redirects")
