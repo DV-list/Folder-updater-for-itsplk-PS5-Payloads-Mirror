@@ -172,7 +172,27 @@ class Application:
             tracked_path = self.base_dir / record.curr_dir_filename
             if tracked_path.exists():
                 tracked_filename = record.curr_dir_filename
-        filename = tracked_filename or expected_name or "ps5upload-control-app"
+        # A control-app package may have been copied into the application directory
+        # manually, without using this app or creating a local-state.json record.
+        # Recognize the known manual folder naming conventions before offering DOWNLOAD.
+        manual_folder = next(
+            (
+                path
+                for path in sorted(self.base_dir.iterdir(), key=lambda item: item.name.lower())
+                if path.is_dir()
+                and (path.name.lower().startswith("ps5upload") or path.name == "Payload")
+            ),
+            None,
+        )
+        expected_path = self.base_dir / expected_name if expected_name else None
+        if tracked_filename:
+            filename = tracked_filename
+        elif expected_path is not None and expected_path.exists():
+            filename = expected_name
+        elif manual_folder is not None:
+            filename = manual_folder.name
+        else:
+            filename = expected_name or "ps5upload-control-app"
         current_path = self.base_dir / filename
         installed = current_path.is_file() or current_path.is_dir()
         parent_row = next(
