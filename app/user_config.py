@@ -5,7 +5,7 @@ import logging
 import shutil
 from pathlib import Path
 
-DEFAULT_CONFIG = '''[General]\nLOG_LEVEL = 0\n//0 - Default; 1 - extended logs for HTTP and parsing\n\n[ps5upload-control-app-dl]\nEnabled = true\nPlatform = default\nDownloadOnlyWhenPS5UploadCurrent = true\n\n// Other values must match an asset suffix on:\n// https://github.com/phantomptr/ps5upload/releases\n// Example: for MAC on M-processor change Platform=default to Platform="mac-arm64.dmg"\n'''
+DEFAULT_CONFIG = '''[General]\nLOG_LEVEL = 0\n// 0 - Default; 1 - extended logs for HTTP and parsing\n\n[ps5upload-control-app-dl]\nEnabled = true\nPlatform = default\nDownloadOnlyWhenPS5UploadCurrent = true\n\n// To get PS5Upload client for other platforms - values must match an asset suffix on:\n// https://github.com/phantomptr/ps5upload/releases\n// Example: for MAC on M-processor change Platform=default to Platform="mac-arm64.dmg"\n'''
 
 
 def _unquote(value: str) -> str:
