@@ -17,7 +17,7 @@ class PayloadCatalog:
     """Retrieve the remote catalog and expose fields used by the application."""
 
     TIMEOUT_SECONDS = 15
-    USER_AGENT = "Folder-updater/1.9.7"
+    USER_AGENT = "Folder-updater/1.9.8"
 
     def __init__(self, url: str) -> None:
         self.url = url
