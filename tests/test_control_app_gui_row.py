@@ -145,6 +145,11 @@ class ControlAppGuiRowTests(unittest.TestCase):
         self.assertEqual(pc_row.server_version, "7.0.22")
         self.assertEqual(pc_row.status, CURRENT)
 
+        # Folder-name version parsing belongs to the control-app module only.
+        elf_row = next(row for row in result.rows if row.payload == "ps5upload.elf")
+        self.assertEqual(elf_row.curr_file_version, "1.0")
+        self.assertEqual(elf_row.status, CURRENT)
+
     def test_manual_payload_folder_prevents_download_state(self):
         manual_folder = self.app.base_dir / "Payload"
         manual_folder.mkdir()
