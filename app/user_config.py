@@ -45,7 +45,7 @@ class UserConfig:
             existing_text = self.path.read_text(encoding="utf-8-sig")
             if "[General]" in existing_text:
                 existing_text = existing_text.replace(
-                    "[General]", f"[General]\\nLOG_LEVEL = {1 if self.verbose_logging else 0}", 1
+                    "[General]", f"[General]\nLOG_LEVEL = {1 if self.verbose_logging else 0}", 1
                 )
                 self.path.write_text(existing_text, encoding="utf-8")
         self.log_level = getattr(logging, self.log_level_name)
