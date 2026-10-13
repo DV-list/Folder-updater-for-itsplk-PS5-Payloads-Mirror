@@ -960,6 +960,7 @@ class MainWindow:
             available,
         )
 
+    @staticmethod
     def _format_file_added_date(value: str | None) -> str:
         # The GUI intentionally uses the agreed full timestamp without a timezone suffix.
         if not value:
