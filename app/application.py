@@ -97,16 +97,6 @@ class Application:
         return result, list(self.download_candidates), self.discovery_error
 
     @staticmethod
-    def _version_key(version: str | None) -> tuple[int, ...] | None:
-        """Extract numeric version components for control-app version comparison."""
-        if not version:
-            return None
-        import re
-
-        parts = re.findall(r"\d+", version)
-        return tuple(int(part) for part in parts) if parts else None
-
-    @staticmethod
     def _ps5upload_is_current(result: ScanResult, catalog_error: str | None) -> bool:
         """Return true only when a fresh/known-good reconciliation marks ps5upload CURRENT."""
         if catalog_error is not None:
@@ -201,13 +191,13 @@ class Application:
             if catalog is None or catalog_entry is None:
                 status = SERVER_UNAVAILABLE
             else:
-                current_version = self._version_key(current_version_text)
-                latest_version = self._version_key(server_version)
-                # The control app has its own release lifecycle. Its status must not
-                # mirror ps5upload.elf: updating the ELF does not update this package.
+                # The standalone control-app module owns version comparison. ELF rows
+                # continue through the ordinary checksum/catalog reconciler.
                 status = (
                     UPDATE_AVAILABLE
-                    if current_version is None or latest_version is None or current_version < latest_version
+                    if self.ps5upload_control_app_module.needs_update(
+                        current_version_text, server_version
+                    )
                     else CURRENT
                 )
         elif catalog is None or catalog_entry is None:
