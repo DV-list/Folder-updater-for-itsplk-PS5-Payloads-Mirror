@@ -983,8 +983,11 @@ class MainWindow:
 
     def _calculate_natural_widths(self) -> None:
         """Measure visible cell content once per data refresh, not on every resize."""
-        body_font = tkfont.Font(family="Segoe UI", size=12)
-        heading_font = tkfont.Font(family="Segoe UI Semibold", size=12)
+        # Measure using the same point sizes and weight as the Treeview styles.
+        body_font = tkfont.Font(family="Segoe UI", size=11)
+        heading_font = tkfont.Font(
+            family="Segoe UI Semibold", size=11, weight="bold"
+        )
 
         values_by_column = {column: [] for column in self.COLUMNS}
         for row in self.result.rows:
