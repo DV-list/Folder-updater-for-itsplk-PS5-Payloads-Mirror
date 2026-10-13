@@ -1,12 +1,9 @@
-# Folder updater v1.9.8
+# Folder updater v1.9.9
 
 ## Changes
 
-- Added `LOG_LEVEL = 0` as the default configuration setting. Set it to `1` to enable detailed HTTP and catalog parsing diagnostics.
-- Added request, response, redirect, and download logging for the payload catalog, ELF updates, and control-app downloads.
-- Added catalog parsing diagnostics, including root structure, payload counts, and entry validation details.
-- Existing configuration files are migrated to include `LOG_LEVEL`; previous `LogLevel` settings remain supported during migration.
-- Added tests for default and verbose logging modes.
+- Added detection of manually downloaded control-app folders whose names start with `PS5Upload` or exactly match `Payload`, so the control-app row no longer incorrectly shows `DOWNLOAD` when either folder is present.
+- Added regression tests for both manual folder naming patterns.
 
 ## Downloads
 
