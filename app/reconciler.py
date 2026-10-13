@@ -3,15 +3,15 @@
 from datetime import datetime
 
 from app.models import LocalFile, PayloadEntry, RowResult, ScanResult, StateRecord
-
-
-CURRENT = "CURRENT"
-UPDATE_AVAILABLE = "UPDATE AVAILABLE"
-UNMATCHED = "UNMATCHED"
-SERVER_UNAVAILABLE = "SERVER UNAVAILABLE"
-REMOVED_FROM_SERVER = "REMOVED FROM SERVER"
-MANUAL = "MANUAL"
-CONTROL_APP_DOWNLOAD = "DOWNLOAD"
+from app.statuses import (
+    CONTROL_APP_DOWNLOAD,
+    CURRENT,
+    MANUAL,
+    REMOVED_FROM_SERVER,
+    SERVER_UNAVAILABLE,
+    UNMATCHED,
+    UPDATE_AVAILABLE,
+)
 
 
 class Reconciler:

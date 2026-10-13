@@ -6,17 +6,20 @@ from pathlib import Path
 class MaterialGuiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source = (Path(__file__).resolve().parents[1] / "app" / "gui.py").read_text(encoding="utf-8")
+        root = Path(__file__).resolve().parents[1]
+        cls.source = (root / "app" / "gui.py").read_text(encoding="utf-8")
+        cls.table_source = (root / "app" / "gui_table.py").read_text(encoding="utf-8")
 
     def test_table_uses_native_treeview_for_fast_row_updates(self):
-        self.assertIn("from tkinter import ttk", self.source)
-        self.assertIn("self.tree = ttk.Treeview(", self.source)
-        self.assertNotIn("class MaterialTable", self.source)
+        self.assertIn("from tkinter import ttk", self.table_source)
+        self.assertIn("self.tree = ttk.Treeview(", self.table_source)
+        self.assertIn("self.table = PayloadTable(", self.source)
+        self.assertNotIn("class MaterialTable", self.table_source)
 
     def test_treeview_keeps_customtkinter_rounded_scrollbars(self):
-        self.assertIn("ctk.CTkScrollbar(", self.source)
-        self.assertIn("yscrollcommand=self.vscroll.set", self.source)
-        self.assertIn("xscrollcommand=self.hscroll.set", self.source)
+        self.assertIn("ctk.CTkScrollbar(", self.table_source)
+        self.assertIn("yscrollcommand=self.vscroll.set", self.table_source)
+        self.assertIn("xscrollcommand=self.hscroll.set", self.table_source)
 
     def test_progress_bar_uses_customtkinter_blue_accent(self):
         self.assertIn("ctk.CTkProgressBar(", self.source)
@@ -47,15 +50,17 @@ class MaterialGuiTests(unittest.TestCase):
     def test_control_app_download_status_is_orange_and_uppercase(self):
         from app.reconciler import CONTROL_APP_DOWNLOAD
         self.assertEqual(CONTROL_APP_DOWNLOAD, "DOWNLOAD")
-        self.assertIn('self.tree.tag_configure("download_available", background="#FFF0D9", foreground="#9A4D00")', self.source)
+        self.assertIn('"download_available": ("#FFF0D9", "#9A4D00")', self.table_source)
         self.assertIn('if status == CONTROL_APP_DOWNLOAD:', self.source)
         self.assertIn('return "download_available"', self.source)
 
-    def test_treeview_font_is_sized_for_high_resolution_display(self):
-        self.assertIn('font=("Segoe UI", 11)', self.source)
-        self.assertIn('font=("Segoe UI Semibold", 11, "bold")', self.source)
+    def test_treeview_font_and_centered_content_sized_startup(self):
+        self.assertIn('font=("Segoe UI", 11)', self.table_source)
+        self.assertIn('font=("Segoe UI Semibold", 11, "bold")', self.table_source)
         self.assertIn('font=("Segoe UI", 28, "bold")', self.source)
-        self.assertIn('self.root.geometry("1800x900")', self.source)
+        self.assertIn("centered_window_geometry(", self.source)
+        self.assertIn('self.root.geometry(f"{width}x{height}+{x}+{y}")', self.source)
+        self.assertIn("self.root.winfo_screenwidth()", self.source)
 
     def test_update_color_uses_reconciliation_result_as_authority(self):
         state = self.source.split('    def _set_update_button_state(self) -> None:', 1)[1].split('    def _set_final_update_status', 1)[0]
@@ -97,6 +102,7 @@ class MaterialGuiTests(unittest.TestCase):
         state = self.source.split('    def _sync_table_layout(self) -> None:', 1)[1].split('    def _calculate_natural_widths', 1)[0]
         self.assertIn('available = max(self.tree.winfo_width(), 1)', state)
         self.assertNotIn('winfo_width() - 28', state)
+        self.assertIn('stretch=(column == "Status")', state)
 
 
 if __name__ == "__main__":

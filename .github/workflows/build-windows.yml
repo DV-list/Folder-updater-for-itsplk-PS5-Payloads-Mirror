@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: build-${{ github.ref }}
@@ -69,10 +69,10 @@ jobs:
           import re
           from pathlib import Path
 
-          source = Path("main.py").read_text(encoding="utf-8")
-          match = re.search(r"Mirror v(\d+\.\d+\.\d+)", source)
+          source = Path("app/version.py").read_text(encoding="utf-8")
+          match = re.search(r'APP_VERSION\s*=\s*["\'](\d+\.\d+\.\d+)["\']', source)
           if not match:
-              raise SystemExit("Could not determine application version from main.py")
+              raise SystemExit("Could not determine application version from app/version.py")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write(f"version={match.group(1)}\n")
 
@@ -115,6 +115,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download platform artifacts
         uses: actions/download-artifact@v4

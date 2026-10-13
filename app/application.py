@@ -14,7 +14,14 @@ from app.user_config import UserConfig
 from app.models import PayloadEntry, ScanResult
 from app.payload_catalog import PayloadCatalog, PayloadCatalogError
 from app.ps5upload_control_app_dl import Ps5uploadControlAppDL
-from app.reconciler import CONTROL_APP_DOWNLOAD, MANUAL, SERVER_UNAVAILABLE, Reconciler
+from app.reconciler import Reconciler
+from app.statuses import (
+    CONTROL_APP_DOWNLOAD,
+    CURRENT,
+    MANUAL,
+    SERVER_UNAVAILABLE,
+    UPDATE_AVAILABLE,
+)
 from app.scanner import FileScanner
 from app.state_repository import StateRepository
 from app.updater import UpdateError, UpdateManager
@@ -120,7 +127,6 @@ class Application:
     def _add_control_app_gui_row(self, result: ScanResult, catalog: list[PayloadEntry] | None) -> ScanResult:
         """Add a control-app row after ps5upload, without downloading absent assets."""
         from app.models import RowResult
-        from app.reconciler import CURRENT, SERVER_UNAVAILABLE, UPDATE_AVAILABLE
 
         result.rows = [row for row in result.rows if row.catalog_payload != "__control_app__"]
         records = result.state_records
