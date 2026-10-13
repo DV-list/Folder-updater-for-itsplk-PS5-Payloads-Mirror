@@ -107,14 +107,6 @@ class Application:
         return tuple(int(part) for part in parts) if parts else None
 
     @staticmethod
-    def _control_app_folder_version(folder_name: str) -> str | None:
-        """Extract a version from a named PS5Upload release folder."""
-        import re
-
-        match = re.match(r"(?i)^PS5Upload[-_ ]+(v?\d+(?:\.\d+)+)(?:[-_ ].*)?$", folder_name)
-        return match.group(1).lstrip("vV") if match else None
-
-    @staticmethod
     def _ps5upload_is_current(result: ScanResult, catalog_error: str | None) -> bool:
         """Return true only when a fresh/known-good reconciliation marks ps5upload CURRENT."""
         if catalog_error is not None:
@@ -180,25 +172,14 @@ class Application:
             tracked_path = self.base_dir / record.curr_dir_filename
             if tracked_path.exists():
                 tracked_filename = record.curr_dir_filename
-        # A control-app package may have been copied into the application directory
-        # manually, without using this app or creating a local-state.json record.
-        # Recognize the known manual folder naming conventions before offering DOWNLOAD.
-        manual_folder = next(
-            (
-                path
-                for path in sorted(self.base_dir.iterdir(), key=lambda item: item.name.lower())
-                if path.is_dir()
-                and (path.name.lower().startswith("ps5upload") or path.name == "Payload")
-            ),
-            None,
-        )
+        # The dedicated control-app module discovers manually copied folders and
+        # updates its own state record before this GUI row is assembled. Do not apply
+        # folder-name version detection or directory matching to ordinary ELF rows.
         expected_path = self.base_dir / expected_name if expected_name else None
         if tracked_filename:
             filename = tracked_filename
         elif expected_path is not None and expected_path.exists():
             filename = expected_name
-        elif manual_folder is not None:
-            filename = manual_folder.name
         else:
             filename = expected_name or "ps5upload-control-app"
         current_path = self.base_dir / filename
@@ -209,12 +190,11 @@ class Application:
         )
         server_version = catalog_entry.version if catalog_entry is not None else None
 
-        # The installed folder name can be newer than local-state.json when the
-        # package was copied or updated manually. Prefer its embedded release version.
-        folder_version = self._control_app_folder_version(filename) if installed and current_path.is_dir() else None
+        # Current version metadata is supplied by the control-app module's state record.
         current_version_text = (
-            folder_version
-            or (record.curr_dir_file_version if record is not None else None)
+            record.curr_dir_file_version
+            if record is not None and installed
+            else None
         )
 
         if installed:
