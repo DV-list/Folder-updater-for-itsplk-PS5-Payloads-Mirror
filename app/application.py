@@ -184,6 +184,11 @@ class Application:
             (row for row in result.rows if (row.catalog_payload or row.payload) == "ps5upload"),
             None,
         )
+        # The control-app row is subordinate to the local ps5upload ELF. Do not
+        # advertise its status or download action when that payload is absent.
+        if parent_row is None:
+            return result
+
         server_version = catalog_entry.version if catalog_entry is not None else None
 
         # Current version metadata is supplied by the control-app module's state record.
@@ -231,11 +236,8 @@ class Application:
             pre_release=pre_release,
             catalog_payload="__control_app__",
         )
-        if parent_row is not None:
-            insert_at = result.rows.index(parent_row) + 1
-            result.rows.insert(insert_at, client_row)
-        else:
-            result.rows.append(client_row)
+        insert_at = result.rows.index(parent_row) + 1
+        result.rows.insert(insert_at, client_row)
         return result
 
     def perform_control_app_download(
