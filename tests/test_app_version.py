@@ -16,7 +16,9 @@ class AppVersionTests(unittest.TestCase):
 
     def test_build_name_uses_current_version(self):
         root = Path(__file__).resolve().parents[1]
-        self.assertIn('v1.9.10', (root / "build.txt").read_text(encoding="utf-8"))
+        build_command = (root / "build.txt").read_text(encoding="utf-8")
+        self.assertIn("from app.version import APP_VERSION", build_command)
+        self.assertIn('v$APP_VERSION', build_command)
 
 
 if __name__ == "__main__":
