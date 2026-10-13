@@ -1,21 +1,25 @@
 """CustomTkinter Material-inspired user interface."""
 
+from collections.abc import Callable
 import logging
 import os
 from pathlib import Path
+from queue import Empty, Queue
 import subprocess
 import sys
-from queue import Empty, Queue
+from threading import Thread
 import tkinter as tk
 import tkinter.font as tkfont
-from tkinter import ttk
-import customtkinter as ctk
+from tkinter import messagebox, ttk
 import webbrowser
-from collections.abc import Callable
-from threading import Thread
 
-from tkinter import messagebox
+import customtkinter as ctk
 
+from app.gui_layout import (
+    calculate_natural_column_widths,
+    calculate_responsive_column_widths,
+    centered_window_geometry,
+)
 from app.models import PayloadEntry, ScanResult
 from app.reconciler import (
     CONTROL_APP_DOWNLOAD,
@@ -54,7 +58,7 @@ class MainWindow:
     COLUMNS = (
         "Payload",
         "FileName",
-        "CurrChecksum",
+        "CurrDirChecksum",
         "CurrFile Version",
         "CurrFileAddedDate",
         "Pre-release",
@@ -67,12 +71,12 @@ class MainWindow:
     COLUMN_WEIGHTS = {
         "Payload": 1.0,
         "FileName": 1.35,
-        "CurrChecksum": 1.75,
+        "CurrDirChecksum": 0.75,
         "CurrFile Version": 0.85,
         "CurrFileAddedDate": 1.05,
         "Pre-release": 0.65,
         "ServerVersion": 0.85,
-        "ServerChecksum": 1.75,
+        "ServerChecksum": 0.75,
         "Status": 0.95,
     }
 
@@ -81,7 +85,7 @@ class MainWindow:
     COLUMN_MIN_WIDTHS = {
         "Payload": 80,
         "FileName": 110,
-        "CurrChecksum": 190,
+        "CurrDirChecksum": 190,
         "CurrFile Version": 85,
         "CurrFileAddedDate": 145,
         "Pre-release": 110,
@@ -137,8 +141,8 @@ class MainWindow:
         # presentation can show natural column widths instead of immediately compressing
         # long checksum columns. The lower bound still guarantees every column remains
         # represented when the user makes the window narrower.
-        self.root.geometry("1800x900")
-        self.root.minsize(1300, 650)
+        # Bootstrap at a modest size; exact geometry is computed after table content is measured.
+        self.root.geometry("1100x800")
 
         self._natural_widths: dict[str, int] = {}
         self._table_width = 0
@@ -150,6 +154,7 @@ class MainWindow:
         self._populate_download_rows()
         self.root.update_idletasks()
         self._set_initial_window_size()
+        self.root.update_idletasks()
         self._sync_table_layout()
         self._show_discovery_error(self._discovery_error)
         self._set_update_button_state()
@@ -858,7 +863,7 @@ class MainWindow:
                 width=self.COLUMN_MIN_WIDTHS[column],
                 minwidth=self.COLUMN_MIN_WIDTHS[column],
                 anchor="w",
-                stretch=False,
+                stretch=(column == "Status"),
             )
 
         self.tree.tag_configure("current", background="#F1F8ED", foreground="#326A3B")
@@ -923,12 +928,34 @@ class MainWindow:
             self.tree.insert("", "end", iid=iid, values=values, tags=(tag,))
 
     def _set_initial_window_size(self) -> None:
-        # Size the initial window around the natural content width. This preserves the
-        # requested content-sized default while still applying a practical desktop cap.
+        """Fit the table to its content and center the window on the current screen."""
         self._calculate_natural_widths()
-        natural_total = sum(self._natural_widths.values())
-        target_width = min(max(natural_total + 32, 1100), 2400)
-        self.root.geometry(f"{target_width}x900")
+
+        # The root window also contains header/table margins, card borders, and the
+        # vertical scrollbar. Account for this fixed chrome around the data columns.
+        horizontal_chrome = 80
+        minimum_content_width = sum(self.COLUMN_MIN_WIDTHS.values())
+        natural_content_width = sum(self._natural_widths.values())
+        requested_width = max(
+            natural_content_width + horizontal_chrome,
+            minimum_content_width + horizontal_chrome,
+        )
+
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        width, height, x, y = centered_window_geometry(
+            requested_width,
+            900,
+            screen_width,
+            screen_height,
+        )
+        minimum_width = min(
+            minimum_content_width + horizontal_chrome,
+            max(1, screen_width - 48),
+        )
+        minimum_height = min(650, max(1, screen_height - 48))
+        self.root.minsize(minimum_width, minimum_height)
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
 
     def _schedule_layout_sync(self) -> None:
         # Coalesce rapid Windows resize events so column calculations do not run for
@@ -938,26 +965,24 @@ class MainWindow:
         self._resize_after_id = self.root.after(25, self._sync_table_layout)
 
     def _sync_table_layout(self) -> None:
-        # Calculate natural content widths once and then distribute the available table
-        # width proportionally while respecting each column's minimum readable width.
+        """Resize columns to fill the visible table area without a trailing gap."""
         self._resize_after_id = None
-        self._calculate_natural_widths()
-
         available = max(self.tree.winfo_width(), 1)
         if available <= 1:
             return
 
         self._table_width = available
         widths = self._calculate_responsive_widths(available)
-
         for column, width in widths.items():
-            self.tree.column(column, width=width, minwidth=self.COLUMN_MIN_WIDTHS[column])
-
-        self.root.update_idletasks()
+            self.tree.column(
+                column,
+                width=width,
+                minwidth=self.COLUMN_MIN_WIDTHS[column],
+                stretch=(column == "Status"),
+            )
 
     def _calculate_natural_widths(self) -> None:
-        # Measure headers and current cell text so
-        # initial sizing is driven by actual content rather than arbitrary fixed widths.
+        """Measure visible cell content once per data refresh, not on every resize."""
         body_font = tkfont.Font(family="Segoe UI", size=12)
         heading_font = tkfont.Font(family="Segoe UI Semibold", size=12)
 
@@ -965,7 +990,7 @@ class MainWindow:
         for row in self.result.rows:
             values_by_column["Payload"].append(row.payload or "UNKNOWN")
             values_by_column["FileName"].append(row.filename)
-            values_by_column["CurrChecksum"].append(row.curr_checksum or "—")
+            values_by_column["CurrDirChecksum"].append(row.curr_checksum or "—")
             values_by_column["CurrFile Version"].append(row.curr_file_version or "—")
             values_by_column["CurrFileAddedDate"].append(
                 self._format_file_added_date(row.curr_file_added_date)
@@ -975,81 +1000,40 @@ class MainWindow:
             )
             values_by_column["ServerVersion"].append(row.server_version or "—")
             values_by_column["ServerChecksum"].append(row.server_checksum or "—")
-            status = self._control_app_download_status if row.catalog_payload == "__control_app__" and self._control_app_download_status else row.status
+            status = (
+                self._control_app_download_status
+                if row.catalog_payload == "__control_app__"
+                and self._control_app_download_status
+                else row.status
+            )
             values_by_column["Status"].append(status)
 
         for entry in self.download_candidates:
             values_by_column["Payload"].append(entry.payload)
             values_by_column["ServerVersion"].append(entry.version)
             values_by_column["ServerChecksum"].append(entry.checksum)
-            values_by_column["Status"].append(self._download_statuses.get(entry.payload, "Not Downloaded"))
-
-        self._natural_widths = {}
-        for column in self.COLUMNS:
-            content_width = heading_font.measure(column)
-            for value in values_by_column[column]:
-                content_width = max(content_width, body_font.measure(value))
-
-            # Add horizontal cell padding so text does not touch cell edges.
-            natural = content_width + 24
-            self._natural_widths[column] = max(
-                self.COLUMN_MIN_WIDTHS[column],
-                natural,
+            values_by_column["Status"].append(
+                self._download_statuses.get(entry.payload, "Not Downloaded")
             )
 
+        self._natural_widths = calculate_natural_column_widths(
+            self.COLUMNS,
+            values_by_column,
+            self.COLUMN_MIN_WIDTHS,
+            body_font.measure,
+            heading_font.measure,
+        )
+
     def _calculate_responsive_widths(self, available: int) -> dict[str, int]:
-        # Natural widths are the preferred starting point. If the window has extra space,
-        # distribute it by column importance; if constrained, shrink toward minimums.
-        natural_total = sum(self._natural_widths.values())
-        minimum_total = sum(self.COLUMN_MIN_WIDTHS.values())
+        """Delegate column arithmetic to the UI-independent layout module."""
+        return calculate_responsive_column_widths(
+            self.COLUMNS,
+            self._natural_widths,
+            self.COLUMN_MIN_WIDTHS,
+            self.COLUMN_WEIGHTS,
+            available,
+        )
 
-        if available >= natural_total:
-            extra = available - natural_total
-            weight_total = sum(self.COLUMN_WEIGHTS.values())
-            widths = {
-                column: self._natural_widths[column]
-                + int(extra * self.COLUMN_WEIGHTS[column] / weight_total)
-                for column in self.COLUMNS
-            }
-        else:
-            shrinkable = max(natural_total - minimum_total, 1)
-            reduction = natural_total - max(available, minimum_total)
-            widths = {
-                column: max(
-                    self.COLUMN_MIN_WIDTHS[column],
-                    self._natural_widths[column]
-                    - int(
-                        reduction
-                        * (
-                            self._natural_widths[column]
-                            - self.COLUMN_MIN_WIDTHS[column]
-                        )
-                        / shrinkable
-                    ),
-                )
-                for column in self.COLUMNS
-            }
-
-        # Correct integer rounding so the columns consume the available table width.
-        current_total = sum(widths.values())
-        delta = available - current_total
-        if delta:
-            adjustable = list(reversed(self.COLUMNS))
-            for column in adjustable:
-                if delta == 0:
-                    break
-                if delta > 0:
-                    widths[column] += delta
-                    delta = 0
-                else:
-                    reducible = widths[column] - self.COLUMN_MIN_WIDTHS[column]
-                    reduction = min(reducible, -delta)
-                    widths[column] -= reduction
-                    delta += reduction
-
-        return widths
-
-    @staticmethod
     def _format_file_added_date(value: str | None) -> str:
         # The GUI intentionally uses the agreed full timestamp without a timezone suffix.
         if not value:
@@ -1116,7 +1100,7 @@ class MainWindow:
         values = self.tree.item(item, "values")
         if not values:
             return "break"
-        checksum = str(values[self.COLUMNS.index("CurrChecksum")]).strip()
+        checksum = str(values[self.COLUMNS.index("CurrDirChecksum")]).strip()
         if not checksum or checksum == "—" or item in self._download_rows:
             return "break"
 
