@@ -131,7 +131,6 @@ class ControlAppGuiRowTests(unittest.TestCase):
             record_type="control-app",
         )
         self.app.state.save([stale_record])
-        self.app.ps5upload_control_app_module.discover_existing_client = Mock(return_value=None)
         result = self._result(CURRENT, include_record=False)
         result.state_records = self.app.state.load()
         catalog = [
