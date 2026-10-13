@@ -25,7 +25,7 @@ class UserConfigTests(unittest.TestCase):
             base = Path(temp)
             (base / "appdata").mkdir()
             (base / "appdata" / "config.ini").write_text(
-                '[General]\\nLOG_LEVEL=1\\n[ps5upload-control-app-dl]\\nEnabled=true\\nPlatform=default\\nDownloadOnlyWhenPS5UploadCurrent=true\\n',
+                '[General]\nLOG_LEVEL=1\n[ps5upload-control-app-dl]\nEnabled=true\nPlatform=default\nDownloadOnlyWhenPS5UploadCurrent=true\n',
                 encoding="utf-8",
             )
             config = UserConfig(base)
@@ -37,7 +37,7 @@ class UserConfigTests(unittest.TestCase):
             base = Path(temp)
             (base / "appdata").mkdir()
             (base / "appdata" / "config.ini").write_text(
-                '[General]\\nLOG_LEVEL=0\\n[ps5upload-control-app-dl]\\nEnabled=true\\nPlatform=default\\nDownloadOnlyWhenPS5UploadCurrent=true\\n',
+                '[General]\nLOG_LEVEL=0\n[ps5upload-control-app-dl]\nEnabled=true\nPlatform=default\nDownloadOnlyWhenPS5UploadCurrent=true\n',
                 encoding="utf-8",
             )
             config = UserConfig(base)
