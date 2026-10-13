@@ -118,6 +118,34 @@ class ControlAppGuiRowTests(unittest.TestCase):
         self.assertTrue((self.app.base_dir / pc_row.filename).is_dir())
         self.assertNotEqual(pc_row.status, CONTROL_APP_DOWNLOAD)
 
+    def test_folder_version_overrides_stale_local_state_and_matches_server(self):
+        folder_name = "PS5Upload-7.0.22-win-x64"
+        (self.app.base_dir / folder_name).mkdir()
+        stale_record = StateRecord(
+            payload=folder_name,
+            curr_dir_filename=folder_name,
+            curr_dir_file_version="7.0.1",
+            curr_checksum="a" * 64,
+            first_seen="2026-01-01 00:00:00",
+            last_seen="2026-01-02 00:00:00",
+            record_type="control-app",
+        )
+        self.app.state.save([stale_record])
+        self.app.ps5upload_control_app_module.discover_existing_client = Mock(return_value=None)
+        result = self._result(CURRENT, include_record=False)
+        result.state_records = self.app.state.load()
+        catalog = [
+            PayloadEntry("ps5upload", "ps5upload.elf", "7.0.22", "3" * 64, "https://example.test/ps5upload.elf")
+        ]
+
+        result = self.app._add_control_app_gui_row(result, catalog)
+
+        pc_row = next(row for row in result.rows if row.catalog_payload == "__control_app__")
+        self.assertEqual(pc_row.filename, folder_name)
+        self.assertEqual(pc_row.curr_file_version, "7.0.22")
+        self.assertEqual(pc_row.server_version, "7.0.22")
+        self.assertEqual(pc_row.status, CURRENT)
+
     def test_manual_payload_folder_prevents_download_state(self):
         manual_folder = self.app.base_dir / "Payload"
         manual_folder.mkdir()
