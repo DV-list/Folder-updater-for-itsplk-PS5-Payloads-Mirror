@@ -1,8 +1,10 @@
-"""Application entry point for Folder updater for itsplk PS5 Payloads Mirror v1.9.10."""
+"""Application entry point for Folder updater for itsplk PS5 Payloads Mirror."""
 
 import logging
 import sys
 from pathlib import Path
+
+from app.version import APP_VERSION
 
 
 def _application_directory() -> Path:
@@ -51,7 +53,7 @@ def main() -> None:
     """Create and run the application with startup diagnostics."""
     log_path = _configure_startup_logging()
     logger = logging.getLogger(__name__)
-    logger.info("Starting Folder updater for itsplk PS5 Payloads Mirror v1.9.10")
+    logger.info("Starting Folder updater for itsplk PS5 Payloads Mirror v%s", APP_VERSION)
     logger.info("Application directory: %s", _application_directory())
 
     try:
