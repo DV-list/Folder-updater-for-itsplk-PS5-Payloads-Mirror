@@ -1,4 +1,4 @@
-# Folder updater v1.9.9
+# Folder updater v1.9.10
 
 ## Changes
 
