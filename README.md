@@ -20,6 +20,8 @@ Folder updater for itsplk PS5 Payloads Mirror is the solution to keep your conso
 3. Review the status shown for each payload. When a download is offered, confirm it in the GUI to start.
 4. The application verifies downloaded content and refreshes the inventory after the operation.
 
+For module boundaries, testing conventions, and GUI sizing rules, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Build from source (Windows, macOS, and Linux)
 
 Build the application separately on each target operating system. **PyInstaller is not a cross-compiler**: a Windows build must be produced on Windows, a macOS build on macOS, and a Linux build on Linux. See the [PyInstaller documentation](https://pyinstaller.org/en/stable/usage.html#supporting-multiple-operating-systems).
@@ -81,7 +83,7 @@ APP_VERSION="$(python -c 'from app.version import APP_VERSION; print(APP_VERSION
 python -m PyInstaller --clean --onefile --optimize 2 --collect-data customtkinter --hidden-import customtkinter --exclude-module unittest --exclude-module test --exclude-module tkinter.test --exclude-module idlelib --exclude-module pydoc_data --exclude-module pytest --exclude-module IPython --exclude-module notebook --name "Folder updater for itsplk PS5 Payloads Mirror v${APP_VERSION}" main.py
 ```
 
-Output: `dist/Folder updater for itsplk PS5 Payloads Mirror v1.9.10` (a native Linux executable, with no `.exe` extension). Build on a Linux distribution compatible with the oldest system you intend to support, then test the binary on that system.
+Output: `dist/Folder updater for itsplk PS5 Payloads Mirror v{APP_VERSION}` (a native Linux executable, with no `.exe` extension). Build on a Linux distribution compatible with the oldest system you intend to support, then test the binary on that system.
 
 ### Before distributing
 
