@@ -83,6 +83,21 @@ class Ps5uploadControlAppDL:
         )
         return match.group(1).lstrip("vV") if match else None
 
+    @staticmethod
+    def _version_key(version: str | None) -> tuple[int, ...] | None:
+        """Parse a version for the standalone control-app module only."""
+        if not version:
+            return None
+        parts = re.findall(r"\d+", version)
+        return tuple(int(part) for part in parts) if parts else None
+
+    @classmethod
+    def needs_update(cls, current_version: str | None, server_version: str | None) -> bool:
+        """Return whether the installed control-app version is older than the catalog."""
+        current_key = cls._version_key(current_version)
+        server_key = cls._version_key(server_version)
+        return current_key is None or server_key is None or current_key < server_key
+
     def _find_manual_client_directory(self) -> Path | None:
         """Find a manually copied control-app folder using supported naming conventions."""
         return next(
