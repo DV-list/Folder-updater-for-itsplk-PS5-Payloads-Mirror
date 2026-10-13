@@ -1,3 +1,29 @@
+# Folder updater v2.0.0
+
+## Changes
+
+- Refactored the GUI table into the dedicated `app/gui_table.py` module, separating table construction, styling, scrollbars, status tags, and row interaction bindings from the main window.
+- Added `app/gui_layout.py` for testable column-width calculations and centered-window geometry.
+- Centered the application window on launch and sized it from measured content, constrained by the available screen dimensions.
+- Reduced the measured content width of the `CurrDirChecksum` and `ServerChecksum` columns by 50% to keep the table compact, while retaining minimum widths for readability.
+- Made the `Status` column use the remaining table width so the final column aligns with the window edge when space permits; when the minimum column widths exceed available space, horizontal scrolling remains available.
+- Centralized status identifiers in `app/statuses.py` and application version metadata in `app/version.py`.
+- Updated the application, window title, and build naming to use version `2.0.0` from the single version source.
+- Restricted GitHub Actions write permissions to the release-publishing job.
+- Added GUI layout regression tests and documented module responsibilities and GUI sizing behavior in `ARCHITECTURE.md`.
+
+## Validation
+
+- GitHub Actions tests and package builds passed on Windows x64, macOS, and Linux x64.
+
+## Downloads
+
+- Windows x64: standalone `.exe`
+- macOS: `.zip` containing the `.app` bundle
+- Linux x64: `.zip` containing the native executable
+
+---
+
 # Folder updater v1.9.10
 
 ## Changes
