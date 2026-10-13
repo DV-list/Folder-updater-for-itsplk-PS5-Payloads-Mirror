@@ -107,6 +107,14 @@ class Application:
         return tuple(int(part) for part in parts) if parts else None
 
     @staticmethod
+    def _control_app_folder_version(folder_name: str) -> str | None:
+        """Extract a version from a named PS5Upload release folder."""
+        import re
+
+        match = re.match(r"(?i)^PS5Upload[-_ ]+(v?\d+(?:\.\d+)+)(?:[-_ ].*)?$", folder_name)
+        return match.group(1).lstrip("vV") if match else None
+
+    @staticmethod
     def _ps5upload_is_current(result: ScanResult, catalog_error: str | None) -> bool:
         """Return true only when a fresh/known-good reconciliation marks ps5upload CURRENT."""
         if catalog_error is not None:
@@ -201,11 +209,19 @@ class Application:
         )
         server_version = catalog_entry.version if catalog_entry is not None else None
 
+        # The installed folder name can be newer than local-state.json when the
+        # package was copied or updated manually. Prefer its embedded release version.
+        folder_version = self._control_app_folder_version(filename) if installed and Path(filename).is_dir() else None
+        current_version_text = (
+            folder_version
+            or (record.curr_dir_file_version if record is not None else None)
+        )
+
         if installed:
             if catalog is None or catalog_entry is None:
                 status = SERVER_UNAVAILABLE
             else:
-                current_version = self._version_key(record.curr_dir_file_version if record is not None else None)
+                current_version = self._version_key(current_version_text)
                 latest_version = self._version_key(server_version)
                 # The control app has its own release lifecycle. Its status must not
                 # mirror ps5upload.elf: updating the ELF does not update this package.
@@ -230,7 +246,7 @@ class Application:
             payload=filename,
             filename=filename,
             curr_checksum=(record.curr_checksum or None) if record is not None and installed else None,
-            curr_file_version=record.curr_dir_file_version if record is not None and installed else None,
+            curr_file_version=current_version_text if installed else None,
             curr_file_added_date=record.first_seen if record is not None and installed else None,
             server_version=server_version,
             # payloads.json checksum belongs to the ELF, not the control-app asset.
