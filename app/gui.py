@@ -10,7 +10,7 @@ import sys
 from threading import Thread
 import tkinter as tk
 import tkinter.font as tkfont
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 import webbrowser
 
 import customtkinter as ctk
@@ -20,6 +20,7 @@ from app.gui_layout import (
     calculate_responsive_column_widths,
     centered_window_geometry,
 )
+from app.gui_table import PayloadTable
 from app.models import PayloadEntry, ScanResult
 from app.statuses import (
     CONTROL_APP_DOWNLOAD,
@@ -788,99 +789,21 @@ class MainWindow:
         self._set_update_button_state()
 
     def _build_table(self) -> None:
-        """Build a responsive native Treeview with CustomTkinter scrollbars.
-
-        Treeview is deliberately retained for efficient rendering of many payload rows;
-        CTk scrollbars and the surrounding rounded card preserve the modern appearance.
-        """
-        self.table_outer = ctk.CTkFrame(
-            self.root, fg_color="#FFFFFF", corner_radius=16,
-            border_width=1, border_color="#DCE4EF",
-        )
-        self.table_outer.pack(fill="both", expand=True, padx=18, pady=(0, 18))
-        self.table_outer.grid_rowconfigure(0, weight=1)
-        self.table_outer.grid_columnconfigure(0, weight=1)
-
-        style = ttk.Style(self.root)
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
-        style.configure(
-            "Payloads.Treeview",
-            background="#FFFFFF",
-            fieldbackground="#FFFFFF",
-            foreground="#263238",
-            font=("Segoe UI", 11),
-            rowheight=36,
-            borderwidth=0,
-        )
-        style.configure(
-            "Payloads.Treeview.Heading",
-            background=self.LIGHT_STEEL,
-            foreground="#25364A",
-            font=("Segoe UI Semibold", 11, "bold"),
-            padding=(8, 9),
-            relief="flat",
-        )
-        style.map(
-            "Payloads.Treeview.Heading",
-            background=[("active", "#C5D4E8")],
-        )
-        style.map(
-            "Payloads.Treeview",
-            background=[("selected", "#DCE7F7")],
-            foreground=[("selected", "#183B65")],
-        )
-
-        self.tree = ttk.Treeview(
-            self.table_outer,
+        """Compose the dedicated table widget and expose its view for interactions."""
+        self.table = PayloadTable(
+            self.root,
             columns=self.COLUMNS,
-            show="headings",
-            style="Payloads.Treeview",
-            selectmode="browse",
+            minimum_widths=self.COLUMN_MIN_WIDTHS,
+            accent_color=self.LIGHT_STEEL,
+            on_pre_release_click=self._on_pre_release_click,
+            on_double_click=self._on_table_double_click,
+            on_resize=self._schedule_layout_sync,
         )
-        self.tree.grid(row=0, column=0, sticky="nsew", padx=(8, 2), pady=(8, 2))
-
-        self.vscroll = ctk.CTkScrollbar(
-            self.table_outer, orientation="vertical", command=self.tree.yview,
-            button_color=self.LIGHT_STEEL, button_hover_color="#819BB9",
-            fg_color="#F3F4F1", corner_radius=8, width=14,
-        )
-        self.vscroll.grid(row=0, column=1, sticky="ns", padx=(2, 8), pady=(8, 2))
-        self.hscroll = ctk.CTkScrollbar(
-            self.table_outer, orientation="horizontal", command=self.tree.xview,
-            button_color=self.LIGHT_STEEL, button_hover_color="#819BB9",
-            fg_color="#F3F4F1", corner_radius=8, height=14,
-        )
-        self.hscroll.grid(row=1, column=0, sticky="ew", padx=(8, 2), pady=(2, 8))
-        self.tree.configure(yscrollcommand=self.vscroll.set, xscrollcommand=self.hscroll.set)
-
-        for column in self.COLUMNS:
-            self.tree.heading(column, text=column, anchor="w")
-            self.tree.column(
-                column,
-                width=self.COLUMN_MIN_WIDTHS[column],
-                minwidth=self.COLUMN_MIN_WIDTHS[column],
-                anchor="w",
-                stretch=(column == "Status"),
-            )
-
-        self.tree.tag_configure("current", background="#F1F8ED", foreground="#326A3B")
-        self.tree.tag_configure("manual", background="#F6E6A8", foreground="#5D4A12")
-        self.tree.tag_configure("update", background="#FFF4EF", foreground="#A43F28")
-        self.tree.tag_configure("unmatched", background="#FCE9E7", foreground="#A82E2E")
-        self.tree.tag_configure("unavailable", background="#F2F3F0", foreground="#596579")
-        self.tree.tag_configure("removed", background="#F8DEDC", foreground="#8B2520")
-        self.tree.tag_configure("download_row", background="#F1F4F8", foreground="#536273")
-        self.tree.tag_configure("download_available", background="#FFF0D9", foreground="#9A4D00")
-        self.tree.tag_configure("download_busy", background="#DDE8F6", foreground="#2C5687")
-        self.tree.tag_configure("download_failed", background="#FCE9E7", foreground="#A82E2E")
-
-        self.tree.bind("<Button-1>", self._on_pre_release_click)
-        self.tree.bind("<Double-1>", self._on_table_double_click)
-        self.tree.bind("<Configure>", lambda _event: self._schedule_layout_sync())
-        self.table_outer.bind("<Configure>", lambda _event: self._schedule_layout_sync())
+        # Keep concise aliases for methods that update rows and handle table events.
+        self.table_outer = self.table.outer
+        self.tree = self.table.tree
+        self.vscroll = self.table.vscroll
+        self.hscroll = self.table.hscroll
 
     def _populate_table(self) -> None:
         # Convert reconciliation results directly into display rows; no business
@@ -957,7 +880,7 @@ class MainWindow:
         self.root.minsize(minimum_width, minimum_height)
         self.root.geometry(f"{width}x{height}+{x}+{y}")
 
-    def _schedule_layout_sync(self) -> None:
+    def _schedule_layout_sync(self, _event=None) -> None:
         # Coalesce rapid Windows resize events so column calculations do not run for
         # every intermediate frame while the user is dragging the window border.
         if self._resize_after_id is not None:
