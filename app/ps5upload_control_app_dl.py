@@ -241,6 +241,12 @@ class Ps5uploadControlAppDL:
         self.logger.info("Control-app version %s installed; previous package archived at %s", entry.version, old_archive)
         return f"Control app updated: {install_name}"
 
+    @staticmethod
+    def _safe_url(url: str) -> str:
+        """Return an HTTP URL without query parameters or fragments."""
+        parsed = urlsplit(url)
+        return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+
     def _validate_url(self, url: str) -> None:
         parsed = urlsplit(url)
         if parsed.scheme.lower() != "https" or not parsed.hostname or parsed.username or parsed.password:
@@ -287,9 +293,11 @@ class Ps5uploadControlAppDL:
             for redirect_count in range(self.MAX_REDIRECTS + 1):
                 self._validate_url(current_url)
                 request = Request(current_url, headers={"User-Agent": self.USER_AGENT}, method="GET")
+                self.logger.debug("Control-app HTTP request starting: GET %s", self._safe_url(current_url))
                 try:
                     response = build_opener(_NoRedirect()).open(request, timeout=self.TIMEOUT_SECONDS)
                 except HTTPError as exc:
+                    self.logger.debug("Control-app HTTP error response: status=%s url=%s", exc.code, self._safe_url(current_url))
                     if exc.code in {301, 302, 303, 307, 308}:
                         location = exc.headers.get("Location")
                         if not location:
@@ -301,11 +309,19 @@ class Ps5uploadControlAppDL:
                         # before the next network request. Never permit HTTPS downgrade.
                         self._validate_url(next_url)
                         current_url = next_url
+                        self.logger.debug("Control-app HTTP redirect received; next URL=%s", self._safe_url(current_url))
                         continue
                     raise ControlAppDownloadError(f"HTTP {exc.code} downloading control-app asset") from exc
                 except URLError as exc:
                     raise ControlAppDownloadError(f"Network error downloading control-app asset: {exc.reason}") from exc
                 with response:
+                    self.logger.debug(
+                        "Control-app HTTP response: status=%s content_type=%s content_length=%s url=%s",
+                        response.status,
+                        response.headers.get("Content-Type"),
+                        response.headers.get("Content-Length"),
+                        self._safe_url(current_url),
+                    )
                     final = urlsplit(response.geturl())
                     if final.scheme.lower() != "https":
                         raise ControlAppDownloadError("Control-app download redirected away from HTTPS")
@@ -327,6 +343,7 @@ class Ps5uploadControlAppDL:
                         os.fsync(output.fileno())
                 if total == 0:
                     raise ControlAppDownloadError("Downloaded control-app asset is empty")
+                self.logger.debug("Control-app HTTP download completed: bytes=%s sha256=%s", total, digest.hexdigest())
                 completed = True
                 return temp_path, digest.hexdigest()
             raise ControlAppDownloadError("Control-app download exceeded redirect limit")
