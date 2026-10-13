@@ -78,7 +78,7 @@ class Ps5uploadControlAppDL:
     def _folder_version_from_name(folder_name: str) -> str | None:
         """Read a version only from a PS5Upload-named control-app directory."""
         match = re.match(
-            r"(?i)^PS5Upload[-_ ]+(v?\\d+(?:\\.\\d+)+)(?:[-_ ].*)?$",
+            r"(?i)^PS5Upload[-_ ]+(v?\d+(?:\.\d+)+)(?:[-_ ].*)?$",
             folder_name,
         )
         return match.group(1).lstrip("vV") if match else None
