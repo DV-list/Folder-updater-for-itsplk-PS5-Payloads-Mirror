@@ -11,10 +11,38 @@ class UserConfigTests(unittest.TestCase):
             base = Path(temp)
             config = UserConfig(base)
             self.assertEqual(config.platform_suffix, "win-x64.zip")
+            self.assertEqual(config.log_level_name, "INFO")
+            self.assertFalse(config.verbose_logging)
+            self.assertIn("LOG_LEVEL = 0", (base / "appdata" / "config.ini").read_text(encoding="utf-8"))
             self.assertTrue(config.control_app_enabled)
             self.assertTrue(config.download_only_when_current)
             self.assertIn("// Other values", (base / "appdata" / "config.ini").read_text(encoding="utf-8"))
             self.assertFalse((base / "config.ini").exists())
+
+
+    def test_log_level_one_enables_verbose_debug_logging(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            (base / "appdata").mkdir()
+            (base / "appdata" / "config.ini").write_text(
+                '[General]\\nLOG_LEVEL=1\\n[ps5upload-control-app-dl]\\nEnabled=true\\nPlatform=default\\nDownloadOnlyWhenPS5UploadCurrent=true\\n',
+                encoding="utf-8",
+            )
+            config = UserConfig(base)
+            self.assertEqual(config.log_level_name, "DEBUG")
+            self.assertTrue(config.verbose_logging)
+
+    def test_log_level_zero_uses_info_logging(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            (base / "appdata").mkdir()
+            (base / "appdata" / "config.ini").write_text(
+                '[General]\\nLOG_LEVEL=0\\n[ps5upload-control-app-dl]\\nEnabled=true\\nPlatform=default\\nDownloadOnlyWhenPS5UploadCurrent=true\\n',
+                encoding="utf-8",
+            )
+            config = UserConfig(base)
+            self.assertEqual(config.log_level_name, "INFO")
+            self.assertFalse(config.verbose_logging)
 
     def test_unquotes_platform_and_respects_debug_level(self):
         with tempfile.TemporaryDirectory() as temp:
