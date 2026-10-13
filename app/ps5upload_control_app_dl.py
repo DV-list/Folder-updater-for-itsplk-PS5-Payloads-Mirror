@@ -36,7 +36,7 @@ class Ps5uploadControlAppDL:
     TIMEOUT_SECONDS = 30
     MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024
     MAX_MEMBERS = 10000
-    USER_AGENT = "Folder-updater-ps5upload-control-app/1.9.7"
+    USER_AGENT = "Folder-updater-ps5upload-control-app/1.9.8"
     MAX_REDIRECTS = 8
 
     def __init__(self, base_dir: Path, state: StateRepository, config: UserConfig) -> None:
