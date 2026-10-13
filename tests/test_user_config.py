@@ -93,6 +93,7 @@ class UserConfigTests(unittest.TestCase):
             self.assertFalse(config.control_app_enabled)
             self.assertEqual(config.platform_suffix, "mac-arm64.dmg")
             self.assertTrue((base / "appdata" / "config.ini").is_file())
+            self.assertIn("LOG_LEVEL = 1", (base / "appdata" / "config.ini").read_text(encoding="utf-8"))
             self.assertTrue(legacy.is_file())
 
 if __name__ == "__main__":
