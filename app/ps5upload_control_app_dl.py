@@ -123,12 +123,11 @@ class Ps5uploadControlAppDL:
             client_path = tracked_path
         elif expected_exists:
             client_path = expected_path
-        elif is_zip:
-            # The control-app may have been copied manually and named after its
-            # release (for example PS5Upload-7.0.22-win-x64).
-            client_path = self._find_manual_client_directory()
         else:
-            client_path = None
+            # The control-app may have been copied manually and named after its
+            # release (for example PS5Upload-7.0.22-win-x64), regardless of the
+            # currently configured download platform.
+            client_path = self._find_manual_client_directory()
 
         if client_path is None:
             return record
