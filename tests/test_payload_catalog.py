@@ -10,6 +10,7 @@ class _Response:
 
     def __init__(self, body):
         self.body = body
+        self.headers = {"Content-Type": "application/json", "Content-Length": str(len(body))}
 
     def __enter__(self):
         return self
