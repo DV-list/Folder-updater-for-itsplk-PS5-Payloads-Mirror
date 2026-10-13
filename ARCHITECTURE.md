@@ -14,7 +14,8 @@ The application is organized around small modules with explicit responsibilities
 - `app/reconciler.py` and `app/state_repository.py` — local/server classification and persisted state/history.
 - `app/updater.py` and `app/downloader.py` — controlled file-transfer and update operations.
 - `app/ps5upload_control_app_dl.py` — independent lifecycle for the separately versioned ps5upload control app.
-- `app/gui.py` — presentation and user interactions. It receives callbacks rather than owning domain services.
+- `app/gui.py` — window orchestration and user interactions. It receives callbacks rather than owning domain services.
+- `app/gui_table.py` — reusable Treeview table widget, styles, scrollbars, and event bindings.
 - `app/gui_layout.py` — deterministic, Tk-independent geometry and table-width calculations.
 
 ## GUI sizing rules
