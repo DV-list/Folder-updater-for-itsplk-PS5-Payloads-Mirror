@@ -96,6 +96,24 @@ class ControlAppGuiRowTests(unittest.TestCase):
         result = self.app._add_control_app_gui_row(result, [])
         self.assertFalse(any(row.catalog_payload == "__control_app__" for row in result.rows))
 
+    def test_control_app_row_is_hidden_when_ps5upload_is_not_in_local_folder(self):
+        result = ScanResult(
+            rows=[
+                RowResult(
+                    "other.elf", "other.elf", "1" * 64, "1.0",
+                    "2026-01-01 00:00:00", "1.0", "1" * 64, CURRENT,
+                    catalog_payload="other",
+                )
+            ],
+            state_records=[],
+        )
+
+        result = self.app._add_control_app_gui_row(result, self._catalog())
+
+        self.assertEqual([row.payload for row in result.rows], ["other.elf"])
+        self.assertFalse(any(row.catalog_payload == "__control_app__" for row in result.rows))
+        self.assertEqual(self.app.state.load(), [])
+
     def test_missing_control_app_creates_download_row_without_state_record(self):
         result = self._result(CURRENT, include_record=False)
         result = self.app._add_control_app_gui_row(result, self._catalog())
