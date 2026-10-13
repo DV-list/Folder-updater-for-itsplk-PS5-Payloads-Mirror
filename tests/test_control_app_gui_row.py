@@ -106,6 +106,30 @@ class ControlAppGuiRowTests(unittest.TestCase):
         self.assertIsNone(pc_row.curr_checksum)
         self.assertEqual(self.app.state.load(), [])
 
+    def test_manual_ps5upload_version_folder_prevents_download_state(self):
+        manual_folder = self.app.base_dir / "PS5Upload-7.0.22-win-x64"
+        manual_folder.mkdir()
+        result = self._result(CURRENT, include_record=False)
+
+        result = self.app._add_control_app_gui_row(result, self._catalog())
+
+        pc_row = next(row for row in result.rows if row.catalog_payload == "__control_app__")
+        self.assertEqual(pc_row.filename, "PS5Upload-7.0.22-win-x64")
+        self.assertTrue((self.app.base_dir / pc_row.filename).is_dir())
+        self.assertNotEqual(pc_row.status, CONTROL_APP_DOWNLOAD)
+
+    def test_manual_payload_folder_prevents_download_state(self):
+        manual_folder = self.app.base_dir / "Payload"
+        manual_folder.mkdir()
+        result = self._result(CURRENT, include_record=False)
+
+        result = self.app._add_control_app_gui_row(result, self._catalog())
+
+        pc_row = next(row for row in result.rows if row.catalog_payload == "__control_app__")
+        self.assertEqual(pc_row.filename, "Payload")
+        self.assertTrue((self.app.base_dir / pc_row.filename).is_dir())
+        self.assertNotEqual(pc_row.status, CONTROL_APP_DOWNLOAD)
+
     def test_download_row_waits_when_ps5upload_is_not_current_and_gate_enabled(self):
         result = self._result(UPDATE_AVAILABLE, include_record=False)
         result = self.app._add_control_app_gui_row(result, self._catalog())
