@@ -15,7 +15,7 @@ class PayloadCatalog:
     """Retrieve the remote catalog and expose fields used by the application."""
 
     TIMEOUT_SECONDS = 15
-    USER_AGENT = "Folder-updater/1.9.4"
+    USER_AGENT = "Folder-updater/1.9.7"
 
     def __init__(self, url: str) -> None:
         self.url = url
@@ -60,8 +60,18 @@ class PayloadCatalog:
                 "payloads.json is not valid UTF-8 JSON"
             ) from exc
 
-        if not isinstance(document, list):
-            raise PayloadCatalogError("payloads.json root must be an array")
+        # The catalog now wraps its entries in a top-level object containing
+        # metadata and a "payloads" array. Keep legacy array compatibility.
+        if isinstance(document, dict):
+            document = document.get("payloads")
+            if not isinstance(document, list):
+                raise PayloadCatalogError(
+                    "payloads.json object must contain a 'payloads' array"
+                )
+        elif not isinstance(document, list):
+            raise PayloadCatalogError(
+                "payloads.json root must be an array or an object containing a 'payloads' array"
+            )
 
         entries: list[PayloadEntry] = []
 
