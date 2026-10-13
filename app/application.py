@@ -211,7 +211,7 @@ class Application:
 
         # The installed folder name can be newer than local-state.json when the
         # package was copied or updated manually. Prefer its embedded release version.
-        folder_version = self._control_app_folder_version(filename) if installed and Path(filename).is_dir() else None
+        folder_version = self._control_app_folder_version(filename) if installed and current_path.is_dir() else None
         current_version_text = (
             folder_version
             or (record.curr_dir_file_version if record is not None else None)
