@@ -55,6 +55,29 @@ class Ps5uploadControlAppDLTests(unittest.TestCase):
         self.assertEqual(record.curr_checksum, "")
         self.assertEqual(len(self.repo.load()), 1)
 
+    def test_versioned_manual_folder_overrides_stale_control_app_state(self):
+        folder_name = "PS5Upload-7.0.22-win-x64"
+        (self.base / folder_name).mkdir()
+        old = StateRecord(
+            payload=folder_name,
+            curr_dir_filename=folder_name,
+            curr_dir_file_version="7.0.1",
+            curr_checksum="f" * 64,
+            first_seen="2026-01-01 00:00:00",
+            last_seen="2026-01-02 00:00:00",
+            record_type="control-app",
+        )
+        self.repo.save([old])
+
+        record = self.module.discover_existing_client([self.entry])
+
+        self.assertIsNotNone(record)
+        self.assertEqual(record.curr_dir_filename, folder_name)
+        self.assertEqual(record.curr_dir_file_version, "7.0.22")
+        self.assertEqual(record.curr_checksum, "f" * 64)
+        stored = next(item for item in self.repo.load() if item.record_type == "control-app")
+        self.assertEqual(stored.curr_dir_file_version, "7.0.22")
+
     def test_zip_download_hashes_archive_extracts_then_deletes_archive(self):
         archive = self.base / "source.zip"
         with zipfile.ZipFile(archive, "w") as zf:
