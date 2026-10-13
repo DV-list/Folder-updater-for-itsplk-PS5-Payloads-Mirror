@@ -21,7 +21,7 @@ from app.gui_layout import (
     centered_window_geometry,
 )
 from app.models import PayloadEntry, ScanResult
-from app.reconciler import (
+from app.statuses import (
     CONTROL_APP_DOWNLOAD,
     CURRENT,
     MANUAL,
