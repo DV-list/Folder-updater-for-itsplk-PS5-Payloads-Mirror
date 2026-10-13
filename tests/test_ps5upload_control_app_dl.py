@@ -78,6 +78,13 @@ class Ps5uploadControlAppDLTests(unittest.TestCase):
         stored = next(item for item in self.repo.load() if item.record_type == "control-app")
         self.assertEqual(stored.curr_dir_file_version, "7.0.22")
 
+    def test_version_comparison_is_owned_by_control_app_module(self):
+        self.assertFalse(self.module.needs_update("7.0.22", "7.0.22"))
+        self.assertFalse(self.module.needs_update("7.0.23", "7.0.22"))
+        self.assertTrue(self.module.needs_update("7.0.1", "7.0.22"))
+        self.assertTrue(self.module.needs_update(None, "7.0.22"))
+        self.assertTrue(self.module.needs_update("7.0.22", None))
+
     def test_zip_download_hashes_archive_extracts_then_deletes_archive(self):
         archive = self.base / "source.zip"
         with zipfile.ZipFile(archive, "w") as zf:
