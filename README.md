@@ -24,7 +24,7 @@ Folder updater for itsplk PS5 Payloads Mirror is the solution to keep your conso
 
 Build the application separately on each target operating system. **PyInstaller is not a cross-compiler**: a Windows build must be produced on Windows, a macOS build on macOS, and a Linux build on Linux. See the [PyInstaller documentation](https://pyinstaller.org/en/stable/usage.html#supporting-multiple-operating-systems).
 
-The commands below use the v1.9.8 output name. Change `v1.9.8` in the `--name` value to match the version being built. Run these commands from the project directory containing `main.py` and `requirements.txt`.
+The commands below use the v1.9.9 output name. Change `v1.9.9` in the `--name` value to match the version being built. Run these commands from the project directory containing `main.py` and `requirements.txt`.
 
 ### Windows (PowerShell)
 
@@ -36,10 +36,10 @@ py -m venv .venv
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install pyinstaller
-python -m PyInstaller --clean --onefile --noconsole --optimize 2 --collect-data customtkinter --hidden-import customtkinter --exclude-module unittest --exclude-module test --exclude-module tkinter.test --exclude-module idlelib --exclude-module pydoc_data --exclude-module pytest --exclude-module IPython --exclude-module notebook --name "Folder updater for itsplk PS5 Payloads Mirror v1.9.8" main.py
+python -m PyInstaller --clean --onefile --noconsole --optimize 2 --collect-data customtkinter --hidden-import customtkinter --exclude-module unittest --exclude-module test --exclude-module tkinter.test --exclude-module idlelib --exclude-module pydoc_data --exclude-module pytest --exclude-module IPython --exclude-module notebook --name "Folder updater for itsplk PS5 Payloads Mirror v1.9.9" main.py
 ```
 
-Output: `dist\Folder updater for itsplk PS5 Payloads Mirror v1.9.8.exe`.
+Output: `dist\Folder updater for itsplk PS5 Payloads Mirror v1.9.9.exe`.
 
 If PowerShell blocks environment activation, use Command Prompt activation instead: `.venv\Scripts\activate.bat`.
 
@@ -53,7 +53,7 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install pyinstaller
-python -m PyInstaller --clean --onefile --windowed --optimize 2 --collect-data customtkinter --hidden-import customtkinter --exclude-module unittest --exclude-module test --exclude-module tkinter.test --exclude-module idlelib --exclude-module pydoc_data --exclude-module pytest --exclude-module IPython --exclude-module notebook --name "Folder updater for itsplk PS5 Payloads Mirror v1.9.8" main.py
+python -m PyInstaller --clean --onefile --windowed --optimize 2 --collect-data customtkinter --hidden-import customtkinter --exclude-module unittest --exclude-module test --exclude-module tkinter.test --exclude-module idlelib --exclude-module pydoc_data --exclude-module pytest --exclude-module IPython --exclude-module notebook --name "Folder updater for itsplk PS5 Payloads Mirror v1.9.9" main.py
 ```
 
 PyInstaller's `--windowed` option creates a macOS `.app` bundle. The exact output is under `dist/`; verify the produced bundle on the macOS versions and CPU architectures you intend to support. Apple Silicon and Intel builds may require different Python environments or target architectures.
@@ -75,10 +75,10 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install pyinstaller
-python -m PyInstaller --clean --onefile --optimize 2 --collect-data customtkinter --hidden-import customtkinter --exclude-module unittest --exclude-module test --exclude-module tkinter.test --exclude-module idlelib --exclude-module pydoc_data --exclude-module pytest --exclude-module IPython --exclude-module notebook --name "Folder updater for itsplk PS5 Payloads Mirror v1.9.8" main.py
+python -m PyInstaller --clean --onefile --optimize 2 --collect-data customtkinter --hidden-import customtkinter --exclude-module unittest --exclude-module test --exclude-module tkinter.test --exclude-module idlelib --exclude-module pydoc_data --exclude-module pytest --exclude-module IPython --exclude-module notebook --name "Folder updater for itsplk PS5 Payloads Mirror v1.9.9" main.py
 ```
 
-Output: `dist/Folder updater for itsplk PS5 Payloads Mirror v1.9.8` (a native Linux executable, with no `.exe` extension). Build on a Linux distribution compatible with the oldest system you intend to support, then test the binary on that system.
+Output: `dist/Folder updater for itsplk PS5 Payloads Mirror v1.9.9` (a native Linux executable, with no `.exe` extension). Build on a Linux distribution compatible with the oldest system you intend to support, then test the binary on that system.
 
 ### Before distributing
 
