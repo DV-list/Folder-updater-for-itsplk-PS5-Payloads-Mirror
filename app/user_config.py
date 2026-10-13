@@ -41,6 +41,13 @@ class UserConfig:
                 legacy_level = "INFO"
             self.log_level_name = legacy_level
             self.verbose_logging = legacy_level == "DEBUG"
+            # Add the new switch to existing config files without discarding user settings.
+            existing_text = self.path.read_text(encoding="utf-8-sig")
+            if "[General]" in existing_text:
+                existing_text = existing_text.replace(
+                    "[General]", f"[General]\\nLOG_LEVEL = {1 if self.verbose_logging else 0}", 1
+                )
+                self.path.write_text(existing_text, encoding="utf-8")
         self.log_level = getattr(logging, self.log_level_name)
         self.control_app_enabled = parser.getboolean("ps5upload-control-app-dl", "Enabled", fallback=True)
         self.platform_setting = _unquote(parser.get("ps5upload-control-app-dl", "Platform", fallback="default"))
