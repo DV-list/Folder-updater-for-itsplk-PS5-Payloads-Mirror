@@ -3,6 +3,7 @@
 import hashlib
 import ipaddress
 import logging
+import re
 import os
 import shutil
 import socket
@@ -73,35 +74,76 @@ class Ps5uploadControlAppDL:
         install_name = asset_filename[:-4] if is_zip else asset_filename
         return entry, asset_url, asset_filename, install_name, is_zip
 
+    @staticmethod
+    def _folder_version_from_name(folder_name: str) -> str | None:
+        """Read a version only from a PS5Upload-named control-app directory."""
+        match = re.match(
+            r"(?i)^PS5Upload[-_ ]+(v?\\d+(?:\\.\\d+)+)(?:[-_ ].*)?$",
+            folder_name,
+        )
+        return match.group(1).lstrip("vV") if match else None
+
+    def _find_manual_client_directory(self) -> Path | None:
+        """Find a manually copied control-app folder using supported naming conventions."""
+        return next(
+            (
+                path
+                for path in sorted(self.base_dir.iterdir(), key=lambda item: item.name.lower())
+                if path.is_dir()
+                and (path.name.lower().startswith("ps5upload") or path.name == "Payload")
+            ),
+            None,
+        )
+
     def discover_existing_client(self, catalog: list[PayloadEntry]) -> StateRecord | None:
-        """Track an already-present control-app asset without initiating a download."""
+        """Track an already-present control-app asset without initiating a download.
+
+        This module owns control-app folder detection and folder-version parsing.
+        ELF files are reconciled by the normal scanner/reconciler and are not affected.
+        """
         description = self.describe_client(catalog)
         if description is None:
             return next((item for item in self.state.load() if item.record_type == self.RECORD_TYPE), None)
 
-        entry, _asset_url, _asset_filename, install_name, is_zip = description
+        _entry, _asset_url, _asset_filename, install_name, is_zip = description
         expected_path = self.base_dir / install_name
         expected_exists = expected_path.is_dir() if is_zip else expected_path.is_file()
         records = self.state.load()
         record = next((item for item in records if item.record_type == self.RECORD_TYPE), None)
 
-        # Prefer the previously tracked path if it is still present. This avoids
-        # silently changing the canonical local filename when Platform changes.
+        # Preserve the tracked path when it still exists. A version in a PS5Upload
+        # folder name takes precedence over stale local-state.json version metadata.
+        tracked_path = None
         if record is not None and record.curr_dir_filename:
-            tracked_path = self.base_dir / record.curr_dir_filename
-            if tracked_path.exists():
-                return record
+            candidate = self.base_dir / record.curr_dir_filename
+            if candidate.exists():
+                tracked_path = candidate
 
-        if not expected_exists:
+        if tracked_path is not None:
+            client_path = tracked_path
+        elif expected_exists:
+            client_path = expected_path
+        elif is_zip:
+            # The control-app may have been copied manually and named after its
+            # release (for example PS5Upload-7.0.22-win-x64).
+            client_path = self._find_manual_client_directory()
+        else:
+            client_path = None
+
+        if client_path is None:
             return record
 
         now = datetime.now().astimezone().replace(microsecond=0).isoformat(sep=" ")
+        folder_version = (
+            self._folder_version_from_name(client_path.name)
+            if client_path.is_dir()
+            else None
+        )
         if record is None:
             record = StateRecord(
-                payload=install_name,
-                curr_dir_filename=install_name,
-                # The installed asset's version is unknown until a verified download.
-                curr_dir_file_version=None,
+                payload=client_path.name,
+                curr_dir_filename=client_path.name,
+                curr_dir_file_version=folder_version,
                 curr_checksum="",
                 first_seen=now,
                 last_seen=now,
@@ -110,11 +152,13 @@ class Ps5uploadControlAppDL:
             )
             records.append(record)
         else:
-            record.payload = install_name
-            record.curr_dir_filename = install_name
+            record.payload = client_path.name
+            record.curr_dir_filename = client_path.name
             record.record_type = self.RECORD_TYPE
-            # Do not copy the server version onto an existing local asset during
-            # discovery; that would incorrectly mark an outdated control app CURRENT.
+            # Do not infer a server version. Use folder metadata only when the
+            # control-app folder itself embeds a version; otherwise preserve state.
+            if folder_version is not None:
+                record.curr_dir_file_version = folder_version
             record.last_seen = now
             if not record.first_seen:
                 record.first_seen = now
