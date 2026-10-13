@@ -30,9 +30,17 @@ class UserConfig:
             self.path.write_text(DEFAULT_CONFIG, encoding="utf-8")
         parser = configparser.ConfigParser(interpolation=None)
         parser.read_string("\n".join(line for line in self.path.read_text(encoding="utf-8-sig").splitlines() if not line.lstrip().startswith("//")))
-        raw_log_level = parser.get("General", "LOG_LEVEL", fallback="0").strip()
-        self.verbose_logging = raw_log_level == "1"
-        self.log_level_name = "DEBUG" if self.verbose_logging else "INFO"
+        raw_log_level = parser.get("General", "LOG_LEVEL", fallback=None)
+        if raw_log_level is not None:
+            self.verbose_logging = raw_log_level.strip() == "1"
+            self.log_level_name = "DEBUG" if self.verbose_logging else "INFO"
+        else:
+            # Read the former LogLevel setting for configs created by older builds.
+            legacy_level = _unquote(parser.get("General", "LogLevel", fallback="INFO")).upper()
+            if legacy_level not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}:
+                legacy_level = "INFO"
+            self.log_level_name = legacy_level
+            self.verbose_logging = legacy_level == "DEBUG"
         self.log_level = getattr(logging, self.log_level_name)
         self.control_app_enabled = parser.getboolean("ps5upload-control-app-dl", "Enabled", fallback=True)
         self.platform_setting = _unquote(parser.get("ps5upload-control-app-dl", "Platform", fallback="default"))
