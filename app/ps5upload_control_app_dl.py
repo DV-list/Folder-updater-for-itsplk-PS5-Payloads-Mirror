@@ -16,6 +16,7 @@ from urllib.parse import urlsplit, urljoin
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from app.models import PayloadEntry, StateRecord
+from app.version import APP_VERSION
 from app.state_repository import StateRepository
 from app.user_config import UserConfig
 
@@ -37,7 +38,7 @@ class Ps5uploadControlAppDL:
     TIMEOUT_SECONDS = 30
     MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024
     MAX_MEMBERS = 10000
-    USER_AGENT = "Folder-updater-ps5upload-control-app/1.9.10"
+    USER_AGENT = f"Folder-updater-ps5upload-control-app/{APP_VERSION}"
     MAX_REDIRECTS = 8
 
     def __init__(self, base_dir: Path, state: StateRepository, config: UserConfig) -> None:
@@ -199,7 +200,15 @@ class Ps5uploadControlAppDL:
 
         # Do not infer that an existing installation has the current server version.
         # Only a successful, verified download records the new version.
-        if target_exists and record is not None and record.curr_dir_file_version == entry.version:
+        if (
+            target_exists
+            and record is not None
+            and record.curr_dir_file_version == entry.version
+            and (
+                not record.curr_dir_filename
+                or record.curr_dir_filename == target_path.name
+            )
+        ):
             record.last_seen = datetime.now().astimezone().replace(microsecond=0).isoformat(sep=" ")
             self.state.save(records)
             self.logger.info("Control-app is already at server version %s", entry.version)
@@ -207,7 +216,7 @@ class Ps5uploadControlAppDL:
 
         download_path: Path | None = None
         staged_path: Path | None = None
-        old_archive: Path | None = None
+        archived_paths: list[tuple[Path, Path]] = []
         asset_checksum: str | None = None
         installed = False
         try:
@@ -228,14 +237,48 @@ class Ps5uploadControlAppDL:
                 if self._sha256(staged_path) != asset_checksum:
                     raise ControlAppDownloadError("Staged control-app checksum verification failed")
 
-            # Archive the previous package only after the replacement is downloaded and validated.
+            # Archive the derived target and the previously tracked installation
+            # only after the replacement has been downloaded and staged successfully.
+            paths_to_archive: list[Path] = []
             if target_exists:
-                old_dir = self.base_dir / "_OLD"
-                old_dir.mkdir(parents=True, exist_ok=True)
-                old_archive = self._unique_archive_path(target_path.name)
-                shutil.move(str(target_path), str(old_archive))
+                paths_to_archive.append(target_path)
 
+            tracked_path_found = False
+            if record is not None and record.curr_dir_filename:
+                try:
+                    tracked_name = self._validate_filename(record.curr_dir_filename)
+                except ControlAppDownloadError:
+                    self.logger.warning(
+                        "Ignoring unsafe tracked control-app filename: %r",
+                        record.curr_dir_filename,
+                    )
+                else:
+                    tracked_path = self.base_dir / tracked_name
+                    if tracked_path.exists():
+                        tracked_path_found = True
+                        if tracked_path != target_path:
+                            paths_to_archive.append(tracked_path)
+
+            # Handle a manually copied installation if there is no usable tracked path.
+            # Do not sweep unrelated untracked ps5upload-like folders.
+            if not tracked_path_found:
+                manual_path = self._find_manual_client_directory()
+                if manual_path is not None and manual_path.exists() and manual_path != target_path:
+                    paths_to_archive.append(manual_path)
+
+            paths_to_archive = list(dict.fromkeys(paths_to_archive))
+            install_started = False
             try:
+                if paths_to_archive:
+                    (self.base_dir / "_OLD").mkdir(parents=True, exist_ok=True)
+                for previous_path in paths_to_archive:
+                    if not previous_path.exists():
+                        continue
+                    archived_path = self._unique_archive_path(previous_path.name)
+                    shutil.move(str(previous_path), str(archived_path))
+                    archived_paths.append((previous_path, archived_path))
+
+                install_started = True
                 shutil.move(str(staged_path), str(target_path))
                 if is_zip:
                     if not target_path.is_dir() or not any(target_path.iterdir()):
@@ -244,14 +287,25 @@ class Ps5uploadControlAppDL:
                     raise ControlAppDownloadError("Final control-app checksum verification failed")
                 installed = True
             except Exception:
-                if target_path.exists():
-                    if target_path.is_dir():
-                        shutil.rmtree(target_path, ignore_errors=True)
-                    else:
-                        target_path.unlink(missing_ok=True)
-                if old_archive is not None and old_archive.exists() and not target_path.exists():
-                    shutil.move(str(old_archive), str(target_path))
-                    old_archive = None
+                # Remove a failed new target, then restore every prior live location.
+                if install_started and target_path.exists():
+                    try:
+                        if target_path.is_dir():
+                            shutil.rmtree(target_path)
+                        else:
+                            target_path.unlink()
+                    except OSError:
+                        self.logger.exception("Unable to remove failed control-app target %s", target_path)
+
+                for previous_path, archived_path in reversed(archived_paths):
+                    if archived_path.exists() and not previous_path.exists():
+                        try:
+                            shutil.move(str(archived_path), str(previous_path))
+                        except OSError:
+                            self.logger.exception(
+                                "Unable to restore previous control-app installation %s",
+                                previous_path,
+                            )
                 raise
         except Exception:
             if staged_path is not None and staged_path.exists():
@@ -296,7 +350,11 @@ class Ps5uploadControlAppDL:
             record.last_seen = now
             record.last_updated = now
         self.state.save(records)
-        self.logger.info("Control-app version %s installed; previous package archived at %s", entry.version, old_archive)
+        self.logger.info(
+            "Control-app version %s installed; previous packages archived at %s",
+            entry.version,
+            [str(path) for _original, path in archived_paths],
+        )
         return f"Control app updated: {install_name}"
 
     @staticmethod

@@ -15,6 +15,7 @@ from urllib.parse import urljoin, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from app.models import PayloadEntry, RowResult, UpdateResult
+from app.version import APP_VERSION
 
 
 class UpdateError(Exception):
@@ -33,7 +34,7 @@ class UpdateManager:
 
     TIMEOUT_SECONDS = 30
     MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024
-    USER_AGENT = "Folder-updater/1.9.10"
+    USER_AGENT = f"Folder-updater/{APP_VERSION}"
     MAX_REDIRECTS = 5
 
     def __init__(self, base_dir: Path) -> None:

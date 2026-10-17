@@ -7,7 +7,7 @@ from app.version import APP_VERSION
 
 class AppVersionTests(unittest.TestCase):
     def test_current_version_is_used_for_window_title(self):
-        self.assertEqual(APP_VERSION, "1.9.11")
+        self.assertEqual(APP_VERSION, "1.9.12")
         self.assertEqual(AppConfig.APP_VERSION, APP_VERSION)
         self.assertEqual(
             AppConfig.WINDOW_TITLE,

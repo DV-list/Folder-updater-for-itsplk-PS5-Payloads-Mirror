@@ -1,4 +1,5 @@
 import hashlib
+import shutil
 import tempfile
 import unittest
 import zipfile
@@ -133,6 +134,77 @@ class Ps5uploadControlAppDLTests(unittest.TestCase):
         self.assertEqual(record.curr_dir_file_version, "1.2.3")
         self.assertEqual(record.curr_checksum, checksum)
         self.assertFalse((self.base / "download-temp.zip").exists())
+
+    def test_update_archives_the_previously_tracked_versioned_folder(self):
+        old_name = "ps5upload_v7.0.26-win-x64"
+        old_folder = self.base / old_name
+        old_folder.mkdir()
+        (old_folder / "PS5Upload.exe").write_bytes(b"old-client")
+        self.repo.save([StateRecord(
+            old_name, old_name, "7.0.26", "f" * 64,
+            "2026-01-01 00:00:00", "2026-01-02 00:00:00",
+            record_type="control-app",
+        )])
+
+        archive_source = self.base / "source.zip"
+        with zipfile.ZipFile(archive_source, "w") as zf:
+            zf.writestr("PS5Upload.exe", b"new-client")
+        checksum = hashlib.sha256(archive_source.read_bytes()).hexdigest()
+
+        def fake_download(url, filename):
+            downloaded = self.base / "download-temp.zip"
+            downloaded.write_bytes(archive_source.read_bytes())
+            return downloaded, checksum
+
+        with patch.object(self.module, "_download_asset", side_effect=fake_download):
+            self.module.ensure_client([self.entry])
+
+        target = self.base / "ps5upload-win-x64"
+        self.assertEqual((target / "PS5Upload.exe").read_bytes(), b"new-client")
+        archived = self.base / "_OLD" / old_name
+        self.assertEqual((archived / "PS5Upload.exe").read_bytes(), b"old-client")
+        self.assertFalse(old_folder.exists())
+        record = next(r for r in self.repo.load() if r.record_type == "control-app")
+        self.assertEqual(record.curr_dir_filename, target.name)
+        self.assertEqual(record.curr_dir_file_version, self.entry.version)
+
+    def test_failed_install_restores_the_tracked_versioned_folder(self):
+        old_name = "ps5upload_v7.0.26-win-x64"
+        old_folder = self.base / old_name
+        old_folder.mkdir()
+        (old_folder / "PS5Upload.exe").write_bytes(b"old-client")
+        self.repo.save([StateRecord(
+            old_name, old_name, "7.0.26", "f" * 64,
+            "2026-01-01 00:00:00", "2026-01-02 00:00:00",
+            record_type="control-app",
+        )])
+
+        archive_source = self.base / "source.zip"
+        with zipfile.ZipFile(archive_source, "w") as zf:
+            zf.writestr("PS5Upload.exe", b"new-client")
+        checksum = hashlib.sha256(archive_source.read_bytes()).hexdigest()
+
+        def fake_download(url, filename):
+            downloaded = self.base / "download-temp.zip"
+            downloaded.write_bytes(archive_source.read_bytes())
+            return downloaded, checksum
+
+        real_move = shutil.move
+
+        def fail_staged_move(source, destination, *args, **kwargs):
+            if Path(source).name.startswith(".ps5upload-control-app-staging-"):
+                raise OSError("simulated install failure")
+            return real_move(source, destination, *args, **kwargs)
+
+        with patch.object(self.module, "_download_asset", side_effect=fake_download):
+            with patch("app.ps5upload_control_app_dl.shutil.move", side_effect=fail_staged_move):
+                with self.assertRaises(OSError):
+                    self.module.ensure_client([self.entry])
+
+        self.assertTrue(old_folder.is_dir())
+        self.assertEqual((old_folder / "PS5Upload.exe").read_bytes(), b"old-client")
+        self.assertFalse((self.base / "ps5upload-win-x64").exists())
+        self.assertFalse(any((self.base / "_OLD").glob("*")))
 
     def test_dmg_asset_is_kept_and_checksum_is_recorded(self):
         (self.base / "appdata" / "config.ini").write_text('[General]\nLogLevel=INFO\n[ps5upload-control-app-dl]\nEnabled=true\nPlatform=mac-arm64.dmg\nDownloadOnlyWhenPS5UploadCurrent=true\n', encoding="utf-8")

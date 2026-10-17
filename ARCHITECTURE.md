@@ -13,7 +13,7 @@ The application is organized around small modules with explicit responsibilities
 - `app/payload_catalog.py` and `app/discovery.py` — remote catalog access and selection of missing payloads.
 - `app/reconciler.py` and `app/state_repository.py` — local/server classification and persisted state/history.
 - `app/updater.py` and `app/downloader.py` — controlled file-transfer and update operations.
-- `app/ps5upload_control_app_dl.py` — independent lifecycle for the separately versioned ps5upload control app.
+- `app/ps5upload_control_app_dl.py` — independent lifecycle for the separately versioned ps5upload control app. It exclusively owns control-app download, version detection, staging, replacement, and archival; the generic `UpdateManager` must skip its GUI row.
 - `app/gui.py` — window orchestration and user interactions. It receives callbacks rather than owning domain services.
 - `app/gui_table.py` — reusable Treeview table widget, styles, scrollbars, and event bindings.
 - `app/gui_layout.py` — deterministic, Tk-independent geometry and table-width calculations.
@@ -29,6 +29,7 @@ The application is organized around small modules with explicit responsibilities
 ## Change and test conventions
 
 - Keep file-system/network side effects in their owning service modules; keep layout arithmetic pure and independently testable.
+- Treat control-app integration as optional: module initialization, row composition, and install failures must be logged and isolated so ordinary payload updates remain usable. Validate staged replacements before moving live folders, and attempt to restore prior tracked installs on failure.
 - Preserve `appdata/local-state.json` compatibility and existing history when changing state serialization.
 - Add regression tests for behavior changes, especially version detection, checksum verification, path validation, and GUI sizing.
 - Run `python -m unittest discover -s tests -v` before merging. CI builds and tests on each target OS; a successful build does not replace testing the resulting application on that OS.

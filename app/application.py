@@ -46,8 +46,14 @@ class Application:
         self.reconciler = Reconciler()
         self.updater = UpdateManager(self.base_dir)
         self.downloader = Downloader(self.base_dir, self.updater)
-        # This independent module manages the platform-configured ps5upload control app.
-        self.ps5upload_control_app_module = Ps5uploadControlAppDL(self.base_dir, self.state, self.user_config)
+        # The control app is optional: failure to initialize it must not prevent ELF updates.
+        try:
+            self.ps5upload_control_app_module = Ps5uploadControlAppDL(
+                self.base_dir, self.state, self.user_config
+            )
+        except Exception:
+            self.logger.exception("Control-app module initialization failed; continuing without it")
+            self.ps5upload_control_app_module = None
         self.result: ScanResult | None = None
         self.last_catalog: list[PayloadEntry] | None = None
         self.download_candidates: list[PayloadEntry] = []
@@ -125,6 +131,19 @@ class Application:
         return True
 
     def _add_control_app_gui_row(self, result: ScanResult, catalog: list[PayloadEntry] | None) -> ScanResult:
+        """Integrate the optional control-app row without risking ordinary payload rows."""
+        try:
+            return self._build_control_app_gui_row(result, catalog)
+        except Exception:
+            self.logger.exception(
+                "Control-app row integration failed; continuing with ordinary payload rows"
+            )
+            result.rows = [
+                row for row in result.rows if row.catalog_payload != "__control_app__"
+            ]
+            return result
+
+    def _build_control_app_gui_row(self, result: ScanResult, catalog: list[PayloadEntry] | None) -> ScanResult:
         """Add a control-app row after ps5upload, without downloading absent assets."""
         from app.models import RowResult
 
@@ -201,6 +220,13 @@ class Application:
         if installed:
             if catalog is None or catalog_entry is None:
                 status = SERVER_UNAVAILABLE
+            elif not self.user_config.control_app_enabled:
+                status = "Disabled in config"
+            elif (
+                self.user_config.download_only_when_current
+                and not self._ps5upload_is_current(result, self.discovery_error)
+            ):
+                status = "Waiting for ps5upload CURRENT"
             else:
                 # The standalone control-app module owns version comparison. ELF rows
                 # continue through the ordinary checksum/catalog reconciler.
@@ -355,7 +381,7 @@ class Application:
         return result
 
     def perform_update(self) -> tuple[ScanResult, int, int, str | None]:
-        """Refresh the catalog, update eligible payloads, and rediscover afterward."""
+        """Update ordinary payloads, then delegate eligible control-app updates safely."""
         self.logger.info("UPDATE operation started")
         state_records = self.state.load()
         local_files = self.scanner.hash_files(self.scanner.scan(self.base_dir))
@@ -371,6 +397,9 @@ class Application:
         result = self._reconcile_and_save(
             local_files, state_records, usable_catalog, reconcile_error
         )
+        # Include the dedicated row for visibility, but UpdateManager deliberately
+        # skips it: the control-app module alone owns its asset lifecycle.
+        result = self._add_control_app_gui_row(result, usable_catalog)
         self.result = result
         if usable_catalog is not None:
             self.download_candidates = self._discover_missing(local_files, result, usable_catalog)
@@ -385,13 +414,44 @@ class Application:
         update_results = self.updater.update_rows(result.rows, catalog_by_payload)
         successful = [item for item in update_results if item.success and item.new_checksum]
         failed = [item for item in update_results if not item.success]
-        self.logger.info(
-            "UPDATE operation completed: successful=%d failed=%d",
-            len(successful), len(failed),
-        )
 
-        # Successful Update always triggers fresh folder reconciliation and server discovery.
+        # Reconcile first. The ordinary ps5upload update may have made the prerequisite
+        # CURRENT during this same operation, which the control-app policy gate observes.
         final_result = self.perform_scan()
+        control_app_updated = False
+        control_app_failed = False
+        control_row = next(
+            (row for row in final_result.rows if row.catalog_payload == "__control_app__"),
+            None,
+        )
+        if control_row is not None and control_row.status == UPDATE_AVAILABLE:
+            try:
+                if not self._control_app_download_allowed(final_result):
+                    self.logger.info(
+                        "Control-app update deferred by configuration: ps5upload is not CURRENT"
+                    )
+                elif self.ps5upload_control_app_module is None:
+                    raise RuntimeError("Control-app module is unavailable")
+                else:
+                    self.logger.info("Control-app update delegated to its dedicated module")
+                    self.ps5upload_control_app_module.ensure_client(
+                        self.last_catalog or usable_catalog or []
+                    )
+                    control_app_updated = True
+                    self.logger.info("Control-app update completed")
+            except Exception:
+                # A broken or failed optional module must not undo or crash the main
+                # updater after ordinary payload updates have already completed.
+                control_app_failed = True
+                self.logger.exception(
+                    "Control-app update failed; continuing with ordinary payload results"
+                )
+
+        if control_app_updated or control_app_failed:
+            # Refresh row, folder name, version, and persisted state after an attempted
+            # install. The row-integration boundary catches control-app-specific faults.
+            final_result = self.perform_scan()
+
         if successful:
             completed_at = datetime.now().astimezone().replace(microsecond=0).isoformat(sep=" ")
             successful_checksums = {
@@ -403,10 +463,16 @@ class Application:
             self.state.save(final_result.state_records)
             self.logger.info("Recorded LastUpdated for %d successful payload update(s)", len(successful))
 
+        successful_count = len(successful) + int(control_app_updated)
+        failed_count = len(failed) + int(control_app_failed)
+        self.logger.info(
+            "UPDATE operation completed: successful=%d failed=%d",
+            successful_count, failed_count,
+        )
         final_result.download_candidates = list(self.download_candidates)
         final_result.discovery_error = self.discovery_error
         self.result = final_result
-        return final_result, len(successful), len(failed), None
+        return final_result, successful_count, failed_count, None
 
     def _discover_missing(self, local_files, result: ScanResult, catalog: list[PayloadEntry]) -> list[PayloadEntry]:
         """Delegate the pure missing-payload selection rules."""
