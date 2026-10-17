@@ -62,7 +62,7 @@ class ControlAppGuiRowTests(unittest.TestCase):
         self.assertEqual(pc_row.server_version, "2.0")
         self.assertEqual(pc_row.curr_file_version, "1.0")
         self.assertEqual(pc_row.curr_checksum, "a" * 64)
-        self.assertEqual(pc_row.status, UPDATE_AVAILABLE)
+        self.assertEqual(pc_row.status, "Waiting for ps5upload CURRENT")
         self.assertEqual(pc_row.payload, pc_row.filename)
         self.assertIsNone(pc_row.server_checksum)
 
