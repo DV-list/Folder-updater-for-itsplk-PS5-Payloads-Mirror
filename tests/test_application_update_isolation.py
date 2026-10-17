@@ -82,11 +82,15 @@ class ApplicationControlAppUpdateIsolationTests(unittest.TestCase):
         self.app.ps5upload_control_app_module.ensure_client.side_effect = RuntimeError(
             "simulated control-app failure"
         )
+        # Simulate an ordinary payload succeeding before the isolated module fails.
+        self.app.updater.update_rows.return_value = [
+            SimpleNamespace(success=True, new_checksum="c" * 64, payload="ps5upload")
+        ]
 
         result, successful, failed, notice = self.app.perform_update()
 
         self.app.ps5upload_control_app_module.ensure_client.assert_called_once_with(self.catalog)
-        self.assertEqual((successful, failed, notice), (0, 1, None))
+        self.assertEqual((successful, failed, notice), (1, 1, None))
         self.assertIs(result, after_failed_control_update)
         self.app.logger.exception.assert_called()
 
