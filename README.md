@@ -1,6 +1,9 @@
 # Folder updater for itsplk PS5 Payloads Mirror
 
-Folder updater for itsplk PS5 Payloads Mirror is the solution to keep your console offline and update useful payloads from a desired folder on your PC/Mac. Payloads are collected using <https://itsplk.github.io/ps5-payloads-mirror>.
+Folder updater for itsplk PS5 Payloads Mirror is the solution to keep your console offline and update useful payloads from a local folder on your PC/Mac. Payloads are collected using <https://itsplk.github.io/ps5-payloads-mirror>.
+
+<img width="1817" height="930" alt="app" src="https://github.com/user-attachments/assets/864ce1fc-a5df-462c-95b2-a353adbfed1e" />
+
 
 ## Features
 
@@ -9,9 +12,9 @@ Folder updater for itsplk PS5 Payloads Mirror is the solution to keep your conso
 - **Update status at a glance** — shows payload names, filenames, local and server versions, checksums, timestamps, and status.
 - **Download on demand** — offers eligible downloads through the GUI instead of silently downloading the control app during startup.
 - **Download verification** — verifies downloaded content and handles supported ZIP extraction safely.
-- **Persistent state and history** — records local payload state in `appdata/local-state.json` and keeps application logs and configuration under `appdata/`.
 - **Automatic rescans** — periodically reconciles the local folder with the saved state and catalog.
-- **Pre-release control** — lets you mark a row as `MANUAL` using the Pre-release checkbox.
+- **Manual control** — lets you mark a row as `MANUAL` using the Pre-release checkbox for aplha, beta payloads, downloaded manually, not listed on <https://itsplk.github.io/ps5-payloads-mirror>.
+- **ps5upload control app support** - lets you download and update a control app for <https://github.com/phantomptr/ps5upload>.
 
 ## How it works
 
@@ -22,10 +25,18 @@ Folder updater for itsplk PS5 Payloads Mirror is the solution to keep your conso
 
 For module boundaries, testing conventions, and GUI sizing rules, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Build from source (Windows, macOS, and Linux)
+## Claude Sonnet 5.5 static review of the code
+<details>
+<summary>Verdict: CLEAN for malicious behavior (source only), with integrity-design weaknesses</summary>
+<br>
+https://github.com/DV-list/Folder-updater-for-itsplk-PS5-Payloads-Mirror/blob/12d209db5d5d2a964644c1eeac5d15bd2da508b6/security-review-folder-updater-1.9.12.md
+</details>
 
+## Build from source
+<details>
+<summary>Windows, macOS, and Linux</summary>
+<br>
 Build the application separately on each target operating system. **PyInstaller is not a cross-compiler**: a Windows build must be produced on Windows, a macOS build on macOS, and a Linux build on Linux. See the [PyInstaller documentation](https://pyinstaller.org/en/stable/usage.html#supporting-multiple-operating-systems).
-
 The commands read the version from `app/version.py` and use it in the build name. Run them from the project directory containing `main.py` and `requirements.txt`.
 
 ### Windows (PowerShell)
@@ -84,17 +95,10 @@ python -m PyInstaller --clean --onefile --optimize 2 --collect-data customtkinte
 ```
 
 Output: `dist/Folder updater for itsplk PS5 Payloads Mirror v{APP_VERSION}` (a native Linux executable, with no `.exe` extension). Build on a Linux distribution compatible with the oldest system you intend to support, then test the binary on that system.
-
-### Before distributing
-
-- Run the built application on the target OS; a successful package build alone does not confirm that every OS-specific interaction works.
-- On macOS, verify application launch and security-signing/notarization requirements for your distribution method.
-- On Linux, ensure Tkinter and required system libraries are available on the target machine.
-- The Python source remains runnable directly after installing `requirements.txt`, provided Python and Tcl/Tk are installed.
+</details>
 
 ## Payload catalog
 
-The application uses the public catalog maintained by the project:
+The application uses the public catalog maintained by **itsplk** project:
 
 <https://itsplk.github.io/ps5-payloads-mirror/payloads.json>
-
