@@ -1,9 +1,9 @@
 # Folder updater for itsplk PS5 Payloads Mirror
 
-Folder updater for itsplk PS5 Payloads Mirror is the solution to keep your console offline and update useful payloads from a local folder on your PC/Mac. Payloads are collected using <https://itsplk.github.io/ps5-payloads-mirror>.
+Folder updater for itsPLK PS5 Payloads Mirror is a simple tool for tracking PS5 payload files in a local folder on your PC or Mac, checking for updates, and keeping them up to date. It helps you keep your PS5 offline while managing and updating useful payloads on your computer. Payloads are sourced from [itsPLK PS5 Payloads Mirror](https://itsplk.github.io/ps5-payloads-mirror/).
+<br>
 
 <img width="1817" height="930" alt="app" src="https://github.com/user-attachments/assets/864ce1fc-a5df-462c-95b2-a353adbfed1e" />
-
 
 ## Features
 
