@@ -124,5 +124,61 @@ class ApplicationControlAppUpdateIsolationTests(unittest.TestCase):
         self.app.logger.exception.assert_called()
 
 
+class ApplicationControlAppWaitingStatusTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.app = Application.__new__(Application)
+        self.app.base_dir = Path(self.temp.name)
+        self.app.logger = Mock()
+        self.app.state = Mock()
+        self.app.state.load.return_value = []
+        self.app.user_config = SimpleNamespace(
+            control_app_enabled=True,
+            download_only_when_current=True,
+        )
+        self.app.discovery_error = None
+        self.app.ps5upload_control_app_module = Mock()
+        self.app.ps5upload_control_app_module.discover_existing_client.return_value = None
+        self.app.ps5upload_control_app_module.describe_client.return_value = (
+            None, "https://example.test/client.zip", "client.zip",
+            "ps5upload-win-x64", True,
+        )
+        self.catalog = [
+            PayloadEntry(
+                "ps5upload", "ps5upload.elf", "2.0", "3" * 64,
+                "https://example.test/ps5upload.elf",
+            )
+        ]
+
+    def _result(self, record=None):
+        parent = RowResult(
+            "ps5upload", "ps5upload.elf", "a" * 64, "1.0",
+            "2026-01-01 00:00:00", "2.0", "3" * 64,
+            UPDATE_AVAILABLE, catalog_payload="ps5upload",
+        )
+        return ScanResult(
+            rows=[parent],
+            state_records=[record] if record is not None else [],
+        )
+
+    def test_missing_control_app_waiting_status_says_updated(self):
+        result = self.app._add_control_app_gui_row(self._result(), self.catalog)
+        control_row = next(row for row in result.rows if row.catalog_payload == "__control_app__")
+        self.assertEqual(control_row.status, "Waiting for ps5upload UPDATED")
+
+    def test_installed_control_app_waiting_status_says_updated(self):
+        client_name = "ps5upload-win-x64"
+        (self.app.base_dir / client_name).mkdir()
+        record = StateRecord(
+            client_name, client_name, "1.0", "b" * 64,
+            "2026-01-01 00:00:00", "2026-01-02 00:00:00",
+            record_type="control-app",
+        )
+        result = self.app._add_control_app_gui_row(self._result(record), self.catalog)
+        control_row = next(row for row in result.rows if row.catalog_payload == "__control_app__")
+        self.assertEqual(control_row.status, "Waiting for ps5upload UPDATED")
+
+
 if __name__ == "__main__":
     unittest.main()

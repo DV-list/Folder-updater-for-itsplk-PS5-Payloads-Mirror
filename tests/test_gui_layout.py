@@ -2,6 +2,7 @@
 
 import unittest
 
+from app.gui import MainWindow
 from app.gui_layout import (
     calculate_natural_column_widths,
     calculate_responsive_column_widths,
@@ -101,6 +102,14 @@ class CenteredWindowGeometryTests(unittest.TestCase):
     def test_invalid_geometry_is_rejected(self):
         with self.assertRaises(ValueError):
             centered_window_geometry(0, 600, 1920, 1080)
+
+
+class TableColumnNamingTests(unittest.TestCase):
+    def test_column_names_are_space_free_and_layout_keys_match(self):
+        self.assertTrue(MainWindow.COLUMNS)
+        self.assertTrue(all(" " not in name for name in MainWindow.COLUMNS))
+        self.assertEqual(set(MainWindow.COLUMNS), set(MainWindow.COLUMN_WEIGHTS))
+        self.assertEqual(set(MainWindow.COLUMNS), set(MainWindow.COLUMN_MIN_WIDTHS))
 
 
 if __name__ == "__main__":
