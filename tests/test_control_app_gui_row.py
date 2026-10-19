@@ -62,7 +62,7 @@ class ControlAppGuiRowTests(unittest.TestCase):
         self.assertEqual(pc_row.server_version, "2.0")
         self.assertEqual(pc_row.curr_file_version, "1.0")
         self.assertEqual(pc_row.curr_checksum, "a" * 64)
-        self.assertEqual(pc_row.status, "Waiting for ps5upload UPDATED")
+        self.assertEqual(pc_row.status, "Waiting for ps5upload CURRENT")
         self.assertEqual(pc_row.payload, pc_row.filename)
         self.assertIsNone(pc_row.server_checksum)
 
@@ -184,7 +184,7 @@ class ControlAppGuiRowTests(unittest.TestCase):
         result = self._result(UPDATE_AVAILABLE, include_record=False)
         result = self.app._add_control_app_gui_row(result, self._catalog())
         pc_row = next(row for row in result.rows if row.catalog_payload == "__control_app__")
-        self.assertEqual(pc_row.status, "Waiting for ps5upload UPDATED")
+        self.assertEqual(pc_row.status, "Waiting for ps5upload CURRENT")
 
     def test_existing_client_uses_actual_tracked_filename(self):
         actual = self.app.base_dir / "custom-control-app-dir"
