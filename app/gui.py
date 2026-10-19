@@ -60,7 +60,7 @@ class MainWindow:
         "Payload",
         "FileName",
         "CurrDirChecksum",
-        "CurrFile Version",
+        "CurrFileVersion",
         "CurrFileAddedDate",
         "Pre-release",
         "ServerVersion",
@@ -73,7 +73,7 @@ class MainWindow:
         "Payload": 1.0,
         "FileName": 1.35,
         "CurrDirChecksum": 0.75,
-        "CurrFile Version": 0.85,
+        "CurrFileVersion": 0.85,
         "CurrFileAddedDate": 1.05,
         "Pre-release": 0.65,
         "ServerVersion": 0.85,
@@ -87,7 +87,7 @@ class MainWindow:
         "Payload": 80,
         "FileName": 110,
         "CurrDirChecksum": 190,
-        "CurrFile Version": 85,
+        "CurrFileVersion": 85,
         "CurrFileAddedDate": 145,
         "Pre-release": 110,
         "ServerVersion": 85,
@@ -917,7 +917,7 @@ class MainWindow:
             values_by_column["Payload"].append(row.payload or "UNKNOWN")
             values_by_column["FileName"].append(row.filename)
             values_by_column["CurrDirChecksum"].append(row.curr_checksum or "—")
-            values_by_column["CurrFile Version"].append(row.curr_file_version or "—")
+            values_by_column["CurrFileVersion"].append(row.curr_file_version or "—")
             values_by_column["CurrFileAddedDate"].append(
                 self._format_file_added_date(row.curr_file_added_date)
             )
