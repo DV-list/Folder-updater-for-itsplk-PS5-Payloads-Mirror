@@ -226,7 +226,7 @@ class Application:
                 self.user_config.download_only_when_current
                 and not self._ps5upload_is_current(result, self.discovery_error)
             ):
-                status = "Waiting for ps5upload CURRENT"
+                status = "Waiting for ps5upload UPDATED"
             else:
                 # The standalone control-app module owns version comparison. ELF rows
                 # continue through the ordinary checksum/catalog reconciler.
@@ -242,7 +242,7 @@ class Application:
         elif not self.user_config.control_app_enabled:
             status = "Disabled in config"
         elif self.user_config.download_only_when_current and not self._ps5upload_is_current(result, self.discovery_error):
-            status = "Waiting for ps5upload CURRENT"
+            status = "Waiting for ps5upload UPDATED"
         elif expected_name is None:
             status = "Download unavailable"
         else:
