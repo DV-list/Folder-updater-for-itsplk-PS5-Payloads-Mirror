@@ -151,15 +151,25 @@ class Reconciler:
                 )
             )
 
+        status_counts = {
+            CURRENT: 0,
+            UPDATE_AVAILABLE: 0,
+            UNMATCHED: 0,
+            REMOVED_FROM_SERVER: 0,
+        }
+        for row in rows:
+            if row.status in status_counts:
+                status_counts[row.status] += 1
+
         return ScanResult(
             rows=rows,
             state_records=updated_history,
             catalog_error=catalog_error,
             scanned_files=len(local_files),
-            current_count=sum(row.status == CURRENT for row in rows),
-            update_count=sum(row.status == UPDATE_AVAILABLE for row in rows),
-            unmatched_count=sum(row.status == UNMATCHED for row in rows),
-            removed_count=sum(row.status == REMOVED_FROM_SERVER for row in rows),
+            current_count=status_counts[CURRENT],
+            update_count=status_counts[UPDATE_AVAILABLE],
+            unmatched_count=status_counts[UNMATCHED],
+            removed_count=status_counts[REMOVED_FROM_SERVER],
         )
 
     @staticmethod

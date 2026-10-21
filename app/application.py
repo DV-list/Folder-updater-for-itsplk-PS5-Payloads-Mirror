@@ -11,7 +11,7 @@ from app.discovery import discover_missing_payloads
 from app.gui import MainWindow
 from app.logging_setup import configure_logging
 from app.user_config import UserConfig
-from app.models import PayloadEntry, ScanResult
+from app.models import LocalFile, PayloadEntry, RowResult, ScanResult, StateRecord
 from app.payload_catalog import PayloadCatalog, PayloadCatalogError
 from app.ps5upload_control_app_dl import Ps5uploadControlAppDL
 from app.reconciler import Reconciler
@@ -62,7 +62,7 @@ class Application:
     def perform_scan(self) -> ScanResult:
         """Scan local files, refresh the catalog, and discover missing payloads."""
         state_records = self.state.load()
-        local_files = self.scanner.hash_files(self.scanner.scan(self.base_dir))
+        local_files = self._scan_local_files()
         fetched_catalog, catalog_error = self._fetch_catalog()
 
         if fetched_catalog is not None:
@@ -72,41 +72,29 @@ class Application:
             self.discovery_error = catalog_error
 
         # On a catalog outage, retain the last good catalog for reconciliation and
-        # Downloader rows. The error is shown separately rather than treating the
-        # catalog as empty or wiping known missing-payload candidates.
+        # Downloader rows. The error remains visible without erasing known candidates.
         usable_catalog = self.last_catalog
         reconcile_error = catalog_error if usable_catalog is None else None
-        result = self._reconcile_and_save(
-            local_files, state_records, usable_catalog, reconcile_error
+        return self._refresh_inventory(
+            local_files=local_files,
+            state_records=state_records,
+            catalog=usable_catalog,
+            reconcile_error=reconcile_error,
         )
-        # Discovery must remain read-only with respect to remote assets: the control
-        # app row is offered in the GUI, and installation starts only after confirmation.
-        result = self._add_control_app_gui_row(result, usable_catalog)
-        self.result = result
-        if usable_catalog is not None:
-            self.download_candidates = self._discover_missing(local_files, result, usable_catalog)
-        result.download_candidates = list(self.download_candidates)
-        result.discovery_error = self.discovery_error
-        return result
 
     def perform_folder_scan(self) -> tuple[ScanResult, list[PayloadEntry], str | None]:
         """Rescan the folder every two minutes without fetching payloads.json."""
         state_records = self.state.load()
-        local_files = self.scanner.hash_files(self.scanner.scan(self.base_dir))
+        local_files = self._scan_local_files()
         reconcile_error = self.discovery_error if self.last_catalog is None else None
-        result = self._reconcile_and_save(
-            local_files, state_records, self.last_catalog, reconcile_error
+        result = self._refresh_inventory(
+            local_files=local_files,
+            state_records=state_records,
+            catalog=self.last_catalog,
+            reconcile_error=reconcile_error,
         )
-        # Periodic scans only reconcile files and update the discovered control-app row.
-        # They never download or extract a control-app release asset.
-        result = self._add_control_app_gui_row(result, self.last_catalog)
-        self.result = result
-        if self.last_catalog is not None:
-            self.download_candidates = self._discover_missing(
-                local_files, result, self.last_catalog
-            )
-        result.download_candidates = list(self.download_candidates)
-        result.discovery_error = self.discovery_error
+        # This periodic path only reconciles local files. It never downloads or
+        # extracts a control-app release asset.
         return result, list(self.download_candidates), self.discovery_error
 
     @staticmethod
@@ -114,7 +102,11 @@ class Application:
         """Return true only when a fresh/known-good reconciliation marks ps5upload CURRENT."""
         if catalog_error is not None:
             return False
-        return any((row.catalog_payload or row.payload) == "ps5upload" and row.status == "CURRENT" for row in result.rows)
+        return any(
+            (row.catalog_payload or row.payload) == "ps5upload"
+            and row.status == CURRENT
+            for row in result.rows
+        )
 
     def _control_app_download_allowed(self, result: ScanResult | None = None) -> bool:
         """Return whether current configuration and catalog state permit a download."""
@@ -145,8 +137,6 @@ class Application:
 
     def _build_control_app_gui_row(self, result: ScanResult, catalog: list[PayloadEntry] | None) -> ScanResult:
         """Add a control-app row after ps5upload, without downloading absent assets."""
-        from app.models import RowResult
-
         result.rows = [row for row in result.rows if row.catalog_payload != "__control_app__"]
         records = result.state_records
         record = next((item for item in records if item.record_type == "control-app"), None)
@@ -365,26 +355,20 @@ class Application:
         # Checkbox changes should not block the GUI on a network request. Reuse the
         # last good catalog and refresh local state only; regular scans still fetch it.
         state_records = self.state.load()
-        local_files = self.scanner.hash_files(self.scanner.scan(self.base_dir))
+        local_files = self._scan_local_files()
         reconcile_error = self.discovery_error if self.last_catalog is None else None
-        result = self._reconcile_and_save(
-            local_files, state_records, self.last_catalog, reconcile_error
+        return self._refresh_inventory(
+            local_files=local_files,
+            state_records=state_records,
+            catalog=self.last_catalog,
+            reconcile_error=reconcile_error,
         )
-        result = self._add_control_app_gui_row(result, self.last_catalog)
-        if self.last_catalog is not None:
-            self.download_candidates = self._discover_missing(
-                local_files, result, self.last_catalog
-            )
-        result.download_candidates = list(self.download_candidates)
-        result.discovery_error = self.discovery_error
-        self.result = result
-        return result
 
     def perform_update(self) -> tuple[ScanResult, int, int, str | None]:
         """Update ordinary payloads, then delegate eligible control-app updates safely."""
         self.logger.info("UPDATE operation started")
         state_records = self.state.load()
-        local_files = self.scanner.hash_files(self.scanner.scan(self.base_dir))
+        local_files = self._scan_local_files()
         fetched_catalog, catalog_error = self._fetch_catalog()
         if fetched_catalog is not None:
             self.last_catalog = fetched_catalog
@@ -394,18 +378,13 @@ class Application:
 
         usable_catalog = self.last_catalog
         reconcile_error = catalog_error if usable_catalog is None else None
-        result = self._reconcile_and_save(
-            local_files, state_records, usable_catalog, reconcile_error
+        # UpdateManager skips the dedicated control-app row; its module owns that lifecycle.
+        result = self._refresh_inventory(
+            local_files=local_files,
+            state_records=state_records,
+            catalog=usable_catalog,
+            reconcile_error=reconcile_error,
         )
-        # Include the dedicated row for visibility, but UpdateManager deliberately
-        # skips it: the control-app module alone owns its asset lifecycle.
-        result = self._add_control_app_gui_row(result, usable_catalog)
-        self.result = result
-        if usable_catalog is not None:
-            self.download_candidates = self._discover_missing(local_files, result, usable_catalog)
-        result.download_candidates = list(self.download_candidates)
-        result.discovery_error = self.discovery_error
-
         if catalog_error:
             self.logger.warning("UPDATE aborted: server catalog unavailable: %s", catalog_error)
             return result, 0, 1, f"Update aborted: server catalog unavailable. {catalog_error}"
@@ -473,6 +452,34 @@ class Application:
         final_result.discovery_error = self.discovery_error
         self.result = final_result
         return final_result, successful_count, failed_count, None
+
+    def _scan_local_files(self) -> list[LocalFile]:
+        """Scan the application directory and calculate local ELF checksums."""
+        return self.scanner.hash_files(self.scanner.scan(self.base_dir))
+
+    def _refresh_inventory(
+        self,
+        local_files: list[LocalFile],
+        state_records: list[StateRecord],
+        catalog: list[PayloadEntry] | None,
+        reconcile_error: str | None,
+    ) -> ScanResult:
+        """Reconcile rows and consistently refresh optional rows and download candidates."""
+        result = self._reconcile_and_save(
+            local_files, state_records, catalog, reconcile_error
+        )
+        result = self._add_control_app_gui_row(result, catalog)
+        self.result = result
+
+        # Preserve prior candidates during a catalog outage when no good catalog exists.
+        if catalog is not None:
+            self.download_candidates = self._discover_missing(
+                local_files, result, catalog
+            )
+
+        result.download_candidates = list(self.download_candidates)
+        result.discovery_error = self.discovery_error
+        return result
 
     def _discover_missing(self, local_files, result: ScanResult, catalog: list[PayloadEntry]) -> list[PayloadEntry]:
         """Delegate the pure missing-payload selection rules."""

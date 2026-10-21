@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from app.models import PayloadEntry
+from app.version import APP_VERSION
 
 
 class PayloadCatalogError(Exception):
@@ -17,7 +18,7 @@ class PayloadCatalog:
     """Retrieve the remote catalog and expose fields used by the application."""
 
     TIMEOUT_SECONDS = 15
-    USER_AGENT = "Folder-updater/1.9.10"
+    USER_AGENT = f"Folder-updater/{APP_VERSION}"
 
     def __init__(self, url: str) -> None:
         self.url = url
