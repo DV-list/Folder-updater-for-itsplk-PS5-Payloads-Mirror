@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from app.payload_catalog import PayloadCatalog, PayloadCatalogError
+from app.version import APP_VERSION
 
 
 class _Response:
@@ -36,6 +37,10 @@ class PayloadCatalogSchemaTests(unittest.TestCase):
         response = _Response(json.dumps(document).encode("utf-8"))
         with patch("app.payload_catalog.urlopen", return_value=response):
             return PayloadCatalog("https://example.com/payloads.json").fetch()
+
+    def test_user_agent_tracks_application_version(self):
+        catalog = PayloadCatalog("https://example.com/payloads.json")
+        self.assertEqual(catalog.USER_AGENT, f"Folder-updater/{APP_VERSION}")
 
     def test_accepts_new_object_with_payloads_array(self):
         result = self._fetch({

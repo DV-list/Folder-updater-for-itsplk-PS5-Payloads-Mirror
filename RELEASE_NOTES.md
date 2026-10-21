@@ -1,10 +1,12 @@
-# Folder updater v1.9.13
+# Folder updater v1.9.14
 
 ## Changes
 
-- Rename the GUI table column `CurrFile Version` to `CurrFileVersion` so the column identifier follows the application's no-spaces naming convention.
-- Replace the control-app status `Waiting for ps5upload CURRENT` with the clearer `Waiting for ps5upload UPDATED` wherever the update is blocked by the ps5upload status.
-- Add regression coverage for space-free GUI column names and both installed and not-yet-installed control-app waiting states.
+- Refactor shared inventory refresh and local scanning paths to reduce repeated orchestration while preserving scan, update, and Pre-release behavior.
+- Simplify missing-payload discovery by tracking payloads whose catalog checksums are already present locally, without building a set of checksums for every payload.
+- Calculate reconciliation summary counts in a single pass over the result rows.
+- Derive the catalog HTTP User-Agent from the application version instead of a stale hard-coded release number.
+- Update version regression coverage and confirm no obsolete status assertions remain in the tests.
 
 ## Downloads
 
